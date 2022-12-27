@@ -4,7 +4,7 @@ from collections import deque
 from itertools import islice
 from jax import numpy as jnp
 
-class BaseRewardTracer(ABC):
+class BaseTracer(ABC):
 
     @abstractmethod
     def reset(self):
@@ -40,14 +40,13 @@ class BaseRewardTracer(ABC):
         Pop a single transition from the cache.
         Returns
         -------
-        transition : TransitionBatch
-            A :class:`TransitionBatch <coax.reward_tracing.TransitionBatch>` object with
-            ``batch_size=1``.
+        transition : 
+            
         """
         pass
 
 
-class NStep(BaseRewardTracer):
+class NStep(BaseTracer):
     r"""
     A short-term cache for :math:`n`-step bootstrapping.
 
@@ -62,9 +61,6 @@ class NStep(BaseRewardTracer):
         The amount by which to discount future rewards.
 
     record_extra_info : bool, optional
-
-        Store all states, actions and rewards in the `extra_info` field
-        of the `TransitionBatch`, e.g. for :code:`coax.regularizers.NStepEntropyRegularizer`.
     """
 
     def __init__(self, n, gamma, record_extra_info=False):
