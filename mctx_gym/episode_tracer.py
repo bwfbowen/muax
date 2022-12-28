@@ -1,8 +1,19 @@
 from abc import ABC, abstractmethod
-
+from dataclasses import dataclass
 from collections import deque 
 from itertools import islice
 from jax import numpy as jnp
+
+
+@dataclass
+class Transition:
+    z: float
+    r: float
+
+     
+class Trajectory:
+    pass
+    
 
 class BaseTracer(ABC):
 
