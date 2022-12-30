@@ -167,7 +167,6 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
         r""" Clear the experience replay buffer. """
         self._storage = sliceable_deque([], maxlen=self.capacity)
         self._trajectory_weight = sliceable_deque([], maxlen=self.capacity)
-        self._index = 0
 
     def __len__(self):
         return len(self._storage)
