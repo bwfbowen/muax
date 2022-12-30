@@ -28,6 +28,7 @@ from typing import Any
 from dataclasses import dataclass
 from collections import deque 
 from itertools import islice
+import jax
 from jax import numpy as jnp
 
 from .utils import sliceable_deque
@@ -102,13 +103,11 @@ class NStep(BaseTracer):
 
         The amount by which to discount future rewards.
 
-    record_extra_info : bool, optional
     """
 
-    def __init__(self, n, gamma, record_extra_info=False):
+    def __init__(self, n, gamma):
         self.n = int(n)
         self.gamma = float(gamma)
-        self.record_extra_info = record_extra_info
         self.reset()
 
     def reset(self):
@@ -142,17 +141,20 @@ class NStep(BaseTracer):
         obs, a, v, pi, w = self._deque_s.popleft()
 
         # n-step partial return
-        Rn = jnp.sum(self._gammas * jnp.array(self._deque_r[:self.n])).item()
+        rs = jnp.array(self._deque_r[:self.n])
+        Rn = jnp.sum(self._gammas[:len(rs)] * rs).item()
         r = self._deque_r.popleft()
 
         # keep in mind that we've already popped 
         if len(self) >= self.n:
             obs_next, a_next, v_next, pi_next, _ = self._deque_s[self.n - 1]
             done = False
+            gamman = self._gamman
         else:
             # no more bootstrapping
             obs_next, a_next, v_next, pi_next, done = obs, a, v, pi, True
+            gamman = self._gammas[len(rs)]
         
-        Rn += v_next * self._gamman
+        Rn += v_next * gamman
 
         return Transition(obs=obs, a=a, r=r, done=done, Rn=Rn, v=v, pi=pi, w=w)
