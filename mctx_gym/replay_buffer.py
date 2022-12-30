@@ -99,17 +99,14 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
     def capacity(self):
         return self._capacity
 
-    def add(self, transition_batch):
+    def add(self, trajectory, w=1):
         r"""
-        Add a transition to the experience replay buffer.
+        Add a trajectory to the experience replay buffer.
         Parameters
         ----------
-        transition_batch : TransitionBatch
-            A :class:`TransitionBatch <coax.reward_tracing.TransitionBatch>` object.
+        trajectory : Trajectory
+            A :class: `Trajectory` object.
         """
-        if not isinstance(transition_batch, TransitionBatch):
-            raise TypeError(
-                f"transition_batch must be a TransitionBatch, got: {type(transition_batch)}")
 
         transition_batch.idx = onp.arange(self._index, self._index + transition_batch.batch_size)
         self._index += transition_batch.batch_size
@@ -117,27 +114,40 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
         while len(self) > self.capacity:
             self._storage.pop(0)
 
-    def sample(self, batch_size=32):
+    def sample(self, 
+               batch_size=32, 
+               num_trajectory: int = None,
+               sample_per_trajectory: int = 1):
         r"""
         Get a batch of transitions to be used for bootstrapped updates.
         Parameters
         ----------
         batch_size : positive int, optional
-            The desired batch size of the sample.
+            The desired batch size of the sample. One sample from a single trajectory.
+        num_trajectory: positive int, optional
+            Number of trajectory to be sampled. Either num_trajectory or batch_size 
+            need to be given.
+        sample_per_trajectory: positive int, optional
+            Number of Transition to be sampled. Used when num_trajectory is provided.
+            The batch size will be num_trajectory * sample_per_trajectory.
         Returns
         -------
-        transitions : TransitionBatch
-            A :class:`TransitionBatch <coax.reward_tracing.TransitionBatch>` object.
+        transitions : Batch of consecutive transitions.
         """
+        if batch_size is None and num_trajectory is None: 
+          raise ValueError('Either num_trajectory or batch_size need to be given.')
+        if batch_size is not None:
+          num_trajectory = batch_size 
+          sample_per_trajectory = 1
         # sandwich sample in between setstate/getstate in case global random state was tampered with
         random.setstate(self._random_state)
-        transitions = random.sample(self._storage, batch_size)
+        trajectories = random.sample(self._storage, batch_size)
         self._random_state = random.getstate()
         return jax.tree_map(lambda *leaves: onp.concatenate(leaves, axis=0), *transitions)
 
     def clear(self):
         r""" Clear the experience replay buffer. """
-        self._storage = list()
+        self._storage = sliceable_deque([])
         self._index = 0
 
     def __len__(self):
