@@ -40,7 +40,7 @@ class Trajectory:
       self._transition_weight.append(transition.w)
     
     def sample(self, num_samples: int = 1, k_steps: int = 5):
-      idxes = random.choices(self.trajectory, 
+      idxes = random.choices(range(len(self)), 
                              weights=self._transition_weight, 
                              k=num_samples)
       samples = [self[idx: (idx + k_steps 

@@ -34,11 +34,6 @@ from jax import numpy as jnp
 from .utils import sliceable_deque
 
 
-def weighted_sum(gammas, rs):
-  Rn = jnp.sum(gammas[:len(rs)] * rs).item()
-  return Rn
-
-
 @dataclass
 class Transition:
     obs: Any
@@ -113,7 +108,6 @@ class NStep(BaseTracer):
     def __init__(self, n, gamma):
         self.n = int(n)
         self.gamma = float(gamma)
-        self._weighted_sum_fn = jax.jit(weighted_sum)
         self.reset()
 
     def reset(self):
@@ -148,8 +142,7 @@ class NStep(BaseTracer):
 
         # n-step partial return
         rs = jnp.array(self._deque_r[:self.n])
-        Rn = self._weighted_sum_fn(self._gammas, rs)
-        # Rn = jnp.sum(self._gammas[:len(rs)] * rs).item()
+        Rn = jnp.sum(self._gammas[:len(rs)] * rs).item()
         r = self._deque_r.popleft()
 
         # keep in mind that we've already popped 
