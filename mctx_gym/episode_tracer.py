@@ -42,7 +42,7 @@ class Transition:
     Rn: float
     v: float
     pi: Any
-    w: float = 1
+    w: float = 1.
     
 
 class BaseTracer(ABC):

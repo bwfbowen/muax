@@ -33,10 +33,23 @@ from .utils import sliceable_deque
 class Trajectory:
     def __init__(self):
       self.trajectory = sliceable_deque([])
+      self._transition_weight = sliceable_deque([])
     
     def add(self, transition):
       self.trajectory.append(transition)
+      self._transition_weight.append(transition.w)
     
+    def sample(self, num_samples: int = 1, k_steps: int = 5):
+      idxes = random.choices(self.trajectory, 
+                             weights=self._transition_weight, 
+                             k=num_samples)
+      samples = [self[idx: (idx + k_steps 
+                            if idx + k_steps < len(self) 
+                            else len(self))
+                    ] 
+                 for idx in idxes]
+      return samples
+
     def __getitem__(self, index):
       return self.trajectory[index]
 
@@ -99,24 +112,23 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
     def capacity(self):
         return self._capacity
 
-    def add(self, trajectory, w=1):
+    def add(self, trajectory, w=1.):
         r"""
         Add a trajectory to the experience replay buffer.
         Parameters
         ----------
         trajectory : Trajectory
             A :class: `Trajectory` object.
+        w: float
+            sample probability weight of input trajectory
         """
-
-        transition_batch.idx = onp.arange(self._index, self._index + transition_batch.batch_size)
-        self._index += transition_batch.batch_size
-        self._storage.extend(transition_batch.to_singles())
-        while len(self) > self.capacity:
-            self._storage.pop(0)
+        self._storage.append(trajectory)
+        self._trajectory_weight.append(w)
 
     def sample(self, 
                batch_size=32, 
                num_trajectory: int = None,
+               k_steps: int = 5,
                sample_per_trajectory: int = 1):
         r"""
         Get a batch of transitions to be used for bootstrapped updates.
@@ -127,6 +139,8 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
         num_trajectory: positive int, optional
             Number of trajectory to be sampled. Either num_trajectory or batch_size 
             need to be given.
+        k_steps: positive int
+            Consecutive k steps from each trajectory. k steps unrolled for training. 
         sample_per_trajectory: positive int, optional
             Number of Transition to be sampled. Used when num_trajectory is provided.
             The batch size will be num_trajectory * sample_per_trajectory.
@@ -141,13 +155,18 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
           sample_per_trajectory = 1
         # sandwich sample in between setstate/getstate in case global random state was tampered with
         random.setstate(self._random_state)
-        trajectories = random.sample(self._storage, batch_size)
+        trajectories = random.choices(self._storage, 
+                                      weights=self._trajectory_weight,
+                                      k=num_trajectory)
         self._random_state = random.getstate()
-        return jax.tree_map(lambda *leaves: onp.concatenate(leaves, axis=0), *transitions)
+        batch = [traj.sample(num_samples=sample_per_trajectory, k_steps=k_steps) 
+                 for traj in trajectories]
+        return batch
 
     def clear(self):
         r""" Clear the experience replay buffer. """
-        self._storage = sliceable_deque([])
+        self._storage = sliceable_deque([], maxlen=self.capacity)
+        self._trajectory_weight = sliceable_deque([], maxlen=self.capacity)
         self._index = 0
 
     def __len__(self):
