@@ -1,18 +1,48 @@
+"""
+    MIT License
+
+    Copyright (c) 2020 Microsoft Corporation.
+    Copyright (c) 2021 github.com/coax-dev
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE
+"""    
+
 from abc import ABC, abstractmethod
+from typing import Any
 from dataclasses import dataclass
 from collections import deque 
 from itertools import islice
 from jax import numpy as jnp
 
+from .utils import sliceable_deque
+
 
 @dataclass
 class Transition:
-    z: float
+    obs: Any
+    a: int
     r: float
-
-     
-class Trajectory:
-    pass
+    done: bool
+    Rn: float
+    v: float
+    pi: Any
+    w: float = 1
     
 
 class BaseTracer(ABC):
@@ -25,12 +55,12 @@ class BaseTracer(ABC):
         pass
 
     @abstractmethod
-    def add(self, s, a, r, done, logp=0.0, w=1.0):
+    def add(self, obs, a, r, done, v=0.0, pi=0.0, w=1.0):
         r"""
         Add a transition to the experience cache.
         Parameters
         ----------
-        s : state observation
+        obs : state observation
             A single state observation.
         a : action
             A single action.
@@ -38,8 +68,9 @@ class BaseTracer(ABC):
             A single observed reward.
         done : bool
             Whether the episode has finished.
-        logp : float, optional
-            The log-propensity :math:`\log\pi(a|s)`.
+        v : search tree root node value.
+        pi : float, optional
+            The action weights.
         w : float, optional
             Sample weight associated with the given state-action pair.
         """
@@ -81,18 +112,18 @@ class NStep(BaseTracer):
         self.reset()
 
     def reset(self):
-        self._deque_s = deque([])
-        self._deque_r = deque([])
+        self._deque_s = sliceable_deque([])
+        self._deque_r = sliceable_deque([])
         self._done = False
         self._gammas = jnp.power(self.gamma, jnp.arange(self.n))
         self._gamman = jnp.power(self.gamma, self.n)
 
-    def add(self, s, a, r, done, logp=0.0, w=1.0):
+    def add(self, obs, a, r, done, v=0.0, pi=0.0, w=1.0):
         # if self._done and len(self):
         #     raise EpisodeDoneError(
         #         "please flush cache (or repeatedly call popleft) before appending new transitions")
 
-        self._deque_s.append((s, a, logp, w))
+        self._deque_s.append((obs, a, v, pi, w))
         self._deque_r.append(r)
         self._done = bool(done)
 
@@ -108,27 +139,20 @@ class NStep(BaseTracer):
         #         "cache needs to receive more transitions before it can be popped from")
 
         # pop state-action (propensities) pair
-        s, a, logp, w = self._deque_s.popleft()
+        obs, a, v, pi, w = self._deque_s.popleft()
 
         # n-step partial return
-        zipped = zip(self._gammas, self._deque_r)
-        rn = sum(x * r for x, r in islice(zipped, self.n))
+        Rn = jnp.sum(self._gammas * jnp.array(self._deque_r[:self.n])).item()
         r = self._deque_r.popleft()
 
-        # keep in mind that we've already popped (s, a, logp)
+        # keep in mind that we've already popped 
         if len(self) >= self.n:
-            s_next, a_next, logp_next, _ = self._deque_s[self.n - 1]
+            obs_next, a_next, v_next, pi_next, _ = self._deque_s[self.n - 1]
             done = False
         else:
             # no more bootstrapping
-            s_next, a_next, logp_next, done = s, a, logp, True
+            obs_next, a_next, v_next, pi_next, done = obs, a, v, pi, True
+        
+        Rn += v_next * self._gamman
 
-        extra_info = self._extra_info(
-            s, a, r, len(self) == 0, logp, w) if self.record_extra_info else None
-
-        return TransitionBatch.from_single(
-            s=s, a=a, logp=logp, r=rn, done=done, gamma=self._gamman,
-            s_next=s_next, a_next=a_next, logp_next=logp_next, w=w, extra_info=extra_info)
-
-    def _extra_info(self, s, a, r, done, logp, w):
-        return
+        return Transition(obs=obs, a=a, r=r, done=done, Rn=Rn, v=v, pi=pi, w=w)
