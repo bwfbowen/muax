@@ -24,7 +24,8 @@
 """    
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Tuple
+import dataclasses
 from dataclasses import dataclass
 from collections import deque 
 from itertools import islice
@@ -36,14 +37,30 @@ from .utils import sliceable_deque
 
 @dataclass
 class Transition:
-    obs: Any
-    a: int
-    r: float
-    done: bool
-    Rn: float
-    v: float
-    pi: Any
+    obs: Any = 0.
+    a: int = 0
+    r: float = 0.
+    done: bool = False
+    Rn: float = 0. 
+    v: float = 0. 
+    pi: Any = 0.
     w: float = 1.
+
+    def __iter__(self):
+      for field in dataclasses.fields(self):
+        yield getattr(self, field.name)
+
+def flatten_transition_func(transition: Transition) -> Tuple:
+  return iter(transition), None 
+
+def unflatten_transition_func(treedef, leaves) -> Transition:
+  return Transition(*leaves)
+
+jax.tree_util.register_pytree_node(
+    Transition,
+    flatten_func=flatten_transition_func,
+    unflatten_func=unflatten_transition_func
+)  
     
 
 class BaseTracer(ABC):

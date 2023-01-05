@@ -25,9 +25,13 @@
 
 from abc import ABC, abstractmethod
 from collections import deque 
+from itertools import chain
 import random
+import jax 
+from jax import numpy as jnp
 
 from .utils import sliceable_deque
+from .episode_tracer import Transition
 
    
 class Trajectory:
@@ -38,17 +42,29 @@ class Trajectory:
     def add(self, transition):
       self.trajectory.append(transition)
       self._transition_weight.append(transition.w)
+
     
     def sample(self, num_samples: int = 1, k_steps: int = 5):
-      idxes = random.choices(range(len(self)), 
-                             weights=self._transition_weight, 
+      if len(self) <= k_steps: return []
+      max_idx = len(self) - k_steps
+      idxes = random.choices(range(max_idx), 
+                             weights=self._transition_weight[:max_idx], 
                              k=num_samples)
-      samples = [self[idx: (idx + k_steps 
-                            if idx + k_steps < len(self) 
-                            else len(self))
-                    ] 
-                 for idx in idxes]
+      
+      samples = [self._get_sample(idx, k_steps) for idx in idxes]
+      
       return samples
+
+    def _get_sample(self, idx, k_steps):
+      end_idx = idx + k_steps 
+      k_steps_sample = self[idx: end_idx]
+      sample = jax.tree_util.tree_transpose(
+          outer_treedef=jax.tree_util.tree_structure([0 for i in k_steps_sample]),
+          inner_treedef=jax.tree_util.tree_structure(Transition()),
+          pytree_to_transpose=k_steps_sample
+          )
+      sample = Transition(*(jnp.expand_dims(jnp.vstack(_attr), axis=0) for _attr in sample))
+      return sample
 
     def __getitem__(self, index):
       return self.trajectory[index]
@@ -159,8 +175,15 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
                                       weights=self._trajectory_weight,
                                       k=num_trajectory)
         self._random_state = random.getstate()
-        batch = [traj.sample(num_samples=sample_per_trajectory, k_steps=k_steps) 
-                 for traj in trajectories]
+        batch = list(chain.from_iterable(traj.sample(num_samples=sample_per_trajectory, k_steps=k_steps) 
+                     for traj in trajectories
+                     ))
+        
+        batch = jax.tree_util.tree_transpose(
+          outer_treedef=jax.tree_util.tree_structure([0 for i in batch]),
+          inner_treedef=jax.tree_util.tree_structure(Transition()),
+          pytree_to_transpose=batch)
+        batch = Transition(*(jnp.vstack(v) for v in batch))
         return batch
 
     def clear(self):
