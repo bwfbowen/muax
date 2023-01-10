@@ -117,11 +117,13 @@ class MuZero:
     loss /= L 
 
     # L2 regularizer
-    flatten_params, _ = jax.flatten_util.ravel_pytree(
-        jax.tree_map(lambda theta: jnp.linalg.norm(theta, ord=2), params)
-        )
+    # TODO: BUG all nan
+    # flatten_params, _ = jax.flatten_util.ravel_pytree(
+    #     jax.tree_map(lambda theta: jnp.linalg.norm(theta, ord=2), params)
+    #     )
     
-    loss += c * jnp.sum(flatten_params)
+    # loss += c * jnp.sum(flatten_params)
+    # print(f'loss2: {loss}')
     return loss
 
   def _root_inference(self, params, rng_key, obs, obs_from_batch: bool = False):
@@ -137,6 +139,7 @@ class MuZero:
         value=v,
         embedding=s
     )
+    
     return root 
 
   def _recurrent_inference(self, params, rng_key, action, embedding):
