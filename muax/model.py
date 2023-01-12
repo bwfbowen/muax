@@ -1,3 +1,4 @@
+from functools import partial
 import jax
 from jax import numpy as jnp 
 import mctx 
@@ -42,6 +43,19 @@ class MuZero:
     self._opt_state = self._optimizer.init(self._params)
     return self._params 
 
+  def representation(self, obs):
+    s = self._repr_apply(self.params['representation'], obs)
+    return s 
+  
+  def prediction(self, s):
+    v, logits = self._pred_apply(self.params['prediction'], s)
+    return v, logits
+
+  def dynamic(self, s, a):
+    r, ns = self._dy_apply(self.params['dynamic'], s, a)
+    return r, ns
+
+  @partial(jax.jit, static_argnums=(0, 3, 4, 5))
   def plan(self, rng_key, obs,
            with_value: bool = True,
            obs_from_batch: bool = False,
@@ -93,21 +107,28 @@ class MuZero:
   def optimizer_state(self):
     return self._opt_state
   
+  @partial(jax.jit, static_argnums=(0, 3))
   def _loss_fn(self, params, batch, c: float = 1e-4):
     loss = 0
     B, L, _ = batch.a.shape
-    s = self.repr_func.apply(params['representation'], batch.obs[:, 0, :])
+    s = self._repr_apply(params['representation'], batch.obs[:, 0, :])
     # TODO: jax.lax.scan (or stay with fori_loop ?)
     def body_func(i, loss_s):
       loss, s = loss_s
-      v, logits = self.pred_func.apply(params['prediction'], s)
-      r, s = self.dy_func.apply(params['dynamic'], s, batch.a[:, i, :].flatten())
+      v, logits = self._pred_apply(params['prediction'], s)
+      r, s = self._dy_apply(params['dynamic'], s, batch.a[:, i, :].flatten())
       # losses: reward
-      loss_r = jnp.mean(optax.l2_loss(r, batch.r[:, i, :]))
+      loss_r = jnp.mean(optax.l2_loss(r, 
+                                      jax.lax.stop_gradient(batch.r[:, i, :])
+                                      ))
       # losses: value
-      loss_v = jnp.mean(optax.l2_loss(v, batch.Rn[:, i, :]))
+      loss_v = jnp.mean(optax.l2_loss(v, 
+                                      jax.lax.stop_gradient(batch.Rn[:, i, :])
+                                      ))
       # losses: action weights
-      loss_pi = jnp.mean(optax.softmax_cross_entropy(logits, batch.pi[:, i, :]))
+      loss_pi = jnp.mean(optax.softmax_cross_entropy(logits, 
+                                                     jax.lax.stop_gradient(batch.pi[:, i, :])
+                                                     ))
 
       loss += loss_r + loss_v + loss_pi 
       loss_s = (loss, s)
@@ -126,9 +147,10 @@ class MuZero:
     # print(f'loss2: {loss}')
     return loss
 
+  @partial(jax.jit, static_argnums=(0, 4))
   def _root_inference(self, params, rng_key, obs, obs_from_batch: bool = False):
-    s = self.repr_func.apply(params['representation'], obs)
-    v, logits = self.pred_func.apply(params['prediction'], s)
+    s = self._repr_apply(params['representation'], obs)
+    v, logits = self._pred_apply(params['prediction'], s)
     if not obs_from_batch:
       s = jnp.expand_dims(s, axis=0)
       logits = jnp.expand_dims(logits, axis=0)
@@ -139,12 +161,12 @@ class MuZero:
         value=v,
         embedding=s
     )
-    
     return root 
 
+  @partial(jax.jit, static_argnums=(0,))
   def _recurrent_inference(self, params, rng_key, action, embedding):
-    r, next_embedding = self.dy_func.apply(params['dynamic'], embedding, action)
-    v, logits = self.pred_func.apply(params['prediction'], embedding)
+    r, next_embedding = self._dy_apply(params['dynamic'], embedding, action)
+    v, logits = self._pred_apply(params['prediction'], embedding)
     r, v = r.flatten(), v.flatten()
     discount = jnp.ones_like(r) * self._discount
     recurrent_output = mctx.RecurrentFnOutput(
@@ -154,6 +176,21 @@ class MuZero:
         value=v 
     )
     return recurrent_output, next_embedding
+  
+  @partial(jax.jit, static_argnums=(0,))
+  def _repr_apply(self, repr_params, obs):
+    s = self.repr_func.apply(repr_params, obs)
+    return s
+
+  @partial(jax.jit, static_argnums=(0,))
+  def _pred_apply(self, pred_params, s):
+    v, logits = self.pred_func.apply(pred_params, s)
+    return v, logits
+
+  @partial(jax.jit, static_argnums=(0,))
+  def _dy_apply(self, dy_params, s, a):
+    r, ns = self.dy_func.apply(dy_params, s, a)
+    return r, ns
 
   def _init_representation_func(self, representation_module, embedding_dim):
     def representation_func(obs):
