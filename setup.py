@@ -17,6 +17,6 @@ setuptools.setup(
   ],
   python_requires='>=3.6',
   py_modules=['muax'],
-  install_requires=['mctx', 'coax', 'dm-haiku', 'optax']
+  install_requires=['mctx', 'dm-haiku', 'optax']
 )
   
