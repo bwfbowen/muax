@@ -28,8 +28,7 @@ class MuZero:
                                            embedding_dim, num_actions)
     self.dy_func = hk.without_apply_rng(hk.transform(self.dy_func))
     
-    # self._policy = jax.jit(mctx.muzero_policy, static_argnums=(3, ))
-    self._policy = mctx.muzero_policy
+    self._policy = jax.jit(mctx.muzero_policy, static_argnums=(3, 4, ))    
     self._optimizer = optimizer 
     self._discount = discount
 
@@ -93,7 +92,6 @@ class MuZero:
   def optimizer_state(self):
     return self._opt_state
 
-  @partial(jax.jit, static_argnums=(0, ))
   def _plan(self, params, rng_key, obs,
            num_simulations: int = 5,
            *args, **kwargs):
