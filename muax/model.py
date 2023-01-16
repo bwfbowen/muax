@@ -28,9 +28,13 @@ class MuZero:
                                            embedding_dim, num_actions)
     self.dy_func = hk.without_apply_rng(hk.transform(self.dy_func))
     
-    self._policy = jax.jit(mctx.muzero_policy, static_argnums=(3, ))
+    # self._policy = jax.jit(mctx.muzero_policy, static_argnums=(3, ))
+    self._policy = mctx.muzero_policy
     self._optimizer = optimizer 
     self._discount = discount
+
+    self.num_actions = num_actions
+    self.embedding_dim = embedding_dim
   
   def init(self, rng_key, sample_input):
     # TODO doc sample_input shape requirement
@@ -56,15 +60,6 @@ class MuZero:
     r, ns = self._dy_apply(self.params['dynamic'], s, a)
     return r, ns
 
-  def plan(self, params, rng_key, obs,
-           num_simulations: int = 5,
-           *args, **kwargs):
-    root = self._root_inference(params, rng_key, obs)
-    plan_output = self._policy(params, rng_key, root, self._recurrent_inference,
-                               num_simulations=num_simulations,
-                               *args, **kwargs)
-    return plan_output, root.value
-
   def act(self, rng_key, obs,
           with_pi: bool = True,
           with_value: bool = True,
@@ -73,7 +68,7 @@ class MuZero:
           *args, **kwargs):
     if not obs_from_batch:
       obs = jnp.expand_dims(obs, axis=0)
-    plan_output, root_value = self.plan(self.params, rng_key, obs, num_simulations,
+    plan_output, root_value = self._plan(self.params, rng_key, obs, num_simulations,
                                         *args, **kwargs)
     root_value = root_value.item() if not obs_from_batch else root_value
     action = plan_output.action.item() if not obs_from_batch else plan_output.action
@@ -97,6 +92,16 @@ class MuZero:
   @property
   def optimizer_state(self):
     return self._opt_state
+
+  @partial(jax.jit, static_argnums=(0, ))
+  def _plan(self, params, rng_key, obs,
+           num_simulations: int = 5,
+           *args, **kwargs):
+    root = self._root_inference(params, rng_key, obs)
+    plan_output = self._policy(params, rng_key, root, self._recurrent_inference,
+                               num_simulations=num_simulations,
+                               *args, **kwargs)
+    return plan_output, root.value
   
   @partial(jax.jit, static_argnums=(0, 3))
   def _loss_fn(self, params, batch, c: float = 1e-4):
