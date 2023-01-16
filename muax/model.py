@@ -28,6 +28,7 @@ class MuZero:
                                            embedding_dim, num_actions)
     self.dy_func = hk.without_apply_rng(hk.transform(self.dy_func))
     
+    self._policy = jax.jit(mctx.muzero_policy, static_argnums=(3, ))
     self._optimizer = optimizer 
     self._discount = discount
   
@@ -55,20 +56,14 @@ class MuZero:
     r, ns = self._dy_apply(self.params['dynamic'], s, a)
     return r, ns
 
-  @partial(jax.jit, static_argnums=(0, 3, 4, 5))
-  def plan(self, rng_key, obs,
-           with_value: bool = True,
-           obs_from_batch: bool = False,
+  def plan(self, params, rng_key, obs,
            num_simulations: int = 5,
            *args, **kwargs):
-    params = self._params
-    root = self._root_inference(params, rng_key, obs, obs_from_batch)
-    plan_output = mctx.muzero_policy(params, rng_key, root, self._recurrent_inference,
-                                     num_simulations=num_simulations,
-                                     *args, **kwargs)
-    
-    if not with_value: return plan_output
-    else: return plan_output, root.value
+    root = self._root_inference(params, rng_key, obs)
+    plan_output = self._policy(params, rng_key, root, self._recurrent_inference,
+                               num_simulations=num_simulations,
+                               *args, **kwargs)
+    return plan_output, root.value
 
   def act(self, rng_key, obs,
           with_pi: bool = True,
@@ -76,15 +71,11 @@ class MuZero:
           obs_from_batch: bool = False,
           num_simulations: int = 5,
           *args, **kwargs):
-    if with_value:
-      plan_output, root_value = self.plan(rng_key, obs, with_value, 
-                                          obs_from_batch, num_simulations,
-                                          *args, **kwargs)
-      root_value = root_value.item() if not obs_from_batch else root_value
-    else:
-      plan_output = self.plan(rng_key, obs, with_value, 
-                              obs_from_batch, num_simulations,
-                              *args, **kwargs)
+    if not obs_from_batch:
+      obs = jnp.expand_dims(obs, axis=0)
+    plan_output, root_value = self.plan(self.params, rng_key, obs, num_simulations,
+                                        *args, **kwargs)
+    root_value = root_value.item() if not obs_from_batch else root_value
     action = plan_output.action.item() if not obs_from_batch else plan_output.action
 
     if with_pi and with_value: return action, plan_output.action_weights, root_value
@@ -147,15 +138,11 @@ class MuZero:
     # print(f'loss2: {loss}')
     return loss
 
-  @partial(jax.jit, static_argnums=(0, 4))
-  def _root_inference(self, params, rng_key, obs, obs_from_batch: bool = False):
+  @partial(jax.jit, static_argnums=(0,))
+  def _root_inference(self, params, rng_key, obs):
     s = self._repr_apply(params['representation'], obs)
-    v, logits = self._pred_apply(params['prediction'], s)
-    if not obs_from_batch:
-      s = jnp.expand_dims(s, axis=0)
-      logits = jnp.expand_dims(logits, axis=0)
-    else:
-      v = v.flatten()
+    v, logits = self._pred_apply(params['prediction'], s)  
+    v = v.flatten()
     root = mctx.RootFnOutput(
         prior_logits=logits,
         value=v,
