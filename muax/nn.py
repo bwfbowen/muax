@@ -22,18 +22,19 @@ class Representation(hk.Module):
 class Prediction(hk.Module):
   def __init__(self, num_actions, name='prediction'):
     super().__init__(name=name)        
-    self.ffn = hk.Sequential([
+    
+    self.v_func = hk.Sequential([
         hk.Linear(8), jax.nn.relu,
-        hk.Linear(8), jax.nn.relu,
-        hk.Linear(8), jax.nn.relu
+        hk.Linear(4), jax.nn.relu,
+        hk.Linear(1)
     ])
-    self.v_func = hk.Linear(1)
     self.pi_func = hk.Sequential([
+        hk.Linear(8), jax.nn.relu,
+        hk.Linear(4), jax.nn.relu,
         hk.Linear(num_actions)
-        ])
+    ])
   
   def __call__(self, s):
-    s = self.ffn(s)
     v = self.v_func(s)
     logits = self.pi_func(s)
     logits = jax.nn.softmax(logits, axis=-1)
@@ -43,13 +44,17 @@ class Prediction(hk.Module):
 class Dynamic(hk.Module):
   def __init__(self, embedding_dim, num_actions, name='dynamic'):
     super().__init__(name=name)
-    self.ffn = hk.Sequential([
+    
+    self.ns_func = hk.Sequential([
         hk.Linear(8), jax.nn.relu,
         hk.Linear(8), jax.nn.relu,
-        hk.Linear(8), jax.nn.relu
+        hk.Linear(embedding_dim)
     ])
-    self.ns_func = hk.Linear(embedding_dim)
-    self.r_func = hk.Linear(1)
+    self.r_func = hk.Sequential([
+        hk.Linear(8), jax.nn.relu,
+        hk.Linear(4), jax.nn.relu,
+        hk.Linear(1)
+    ])
     self.cat_func = jax.jit(lambda s, a: 
                             jnp.concatenate([s, jax.nn.one_hot(a, num_actions)],
                                             axis=1)
@@ -57,7 +62,6 @@ class Dynamic(hk.Module):
   
   def __call__(self, s, a):
     sa = self.cat_func(s, a)
-    sa = self.ffn(sa)
     r = self.r_func(sa)
     ns = self.ns_func(sa)
     return r, ns
