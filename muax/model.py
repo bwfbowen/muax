@@ -7,6 +7,7 @@ import haiku as hk
 
 
 class MuZero:
+  r"""Muzero algorithm"""
   def __init__(self, 
                embedding_dim,
                num_actions,
@@ -16,6 +17,25 @@ class MuZero:
                optimizer = optax.adam(0.01),
                discount: float = 0.99
                ):
+    """
+    TODO: more args, more flexible for repr, pred, dy modules
+    
+    Parameters
+    ----------
+    embedding_dim: Any. 
+        The embedding dimension of hidden state `s`. Depends on the representation module. 
+    num_actions: Any. 
+        The maximum number of actions the policy can take. Depends on the prediction module and dynamic module.
+    representation_module: A class inherents hk.Module, 
+        which takes raw observation `obs` from the environment as input and outputs the hidden state `s`.
+        `s` will be the input of prediction_module and dynamic_module.
+    prediction_module: A class inherents hk.Module, 
+        which takes hidden state `s` as input and outputs prior logits `logits` and value `v` of the state.
+    dynamic_module: A class inherents hk.Module,
+        which takes hidden state `s` and action `a` as input and outputs reward `r` and next hidden state `ns`.
+    optimizer: Optimizer to update the parameters of `representation_module`, `prediction_module` and `dynamic_module`.
+    discount: Any. Used for mctx.RecurrentFnOutput.
+    """
     self.repr_func = self._init_representation_func(representation_module, 
                                                     embedding_dim) 
     self.repr_func = hk.without_apply_rng(hk.transform(self.repr_func))
@@ -37,6 +57,7 @@ class MuZero:
   
   def init(self, rng_key, sample_input):
     # TODO doc sample_input shape requirement
+    
     repr_params = self.repr_func.init(rng_key, sample_input)
     s = self.repr_func.apply(repr_params, sample_input)
     pred_params = self.pred_func.init(rng_key, s)
