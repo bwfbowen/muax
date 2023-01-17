@@ -36,16 +36,41 @@ from .episode_tracer import Transition
 
    
 class Trajectory:
+    r"""
+    A simple trajectory to hold episodical transitions.
+    """
     def __init__(self):
       self.trajectory = sliceable_deque([])
       self._transition_weight = sliceable_deque([])
     
     def add(self, transition):
+      """Adds a transition to the trajectory
+      
+      Parameters
+      ----------
+      transition: An instance of muax.episode_tracer.Transition. 
+      
+      """
       self.trajectory.append(transition)
       self._transition_weight.append(transition.w)
 
     
     def sample(self, num_samples: int = 1, k_steps: int = 5):
+      """Samples consecutive transitions of k steps from the trajectory.
+      
+      Parameters
+      ----------
+      num_samples: int, positive int. Number of samples to draw from the trajectory. 
+          Each sample is chosen given the weight(transition.w) as probability.
+      k_steps: int, positive int. Determines the length of consecutive steps in each sample.
+          If k_steps >= len(trajectory), no samples would be collected.
+      
+      Returns
+      ----------
+      samples: List[Transition]. For each transition in the list, 
+          the attributes of which have the dimension `[B, L, ...]`, where B is the batch size(1) and 
+          L is the length(k) of the consecutive transitions.
+      """
       if len(self) <= k_steps: return []
       max_idx = len(self) - k_steps
       idxes = random.choices(range(max_idx), 
