@@ -57,7 +57,17 @@ class MuZero:
   
   def init(self, rng_key, sample_input):
     # TODO doc sample_input shape requirement
+    """Inits `representation`, `prediction` and `dynamic` functions and optimizer
     
+    Parameters
+    ----------
+    rng_key: jax.random.PRNGKey.
+    sample_input: Array. The dimension is `[B, ...]` where B is the batch dimension.
+    
+    Returns
+    ----------
+    params: dict. {'representation': repr_params, 'prediction': pred_params, 'dynamic': dy_params}
+    """
     repr_params = self.repr_func.init(rng_key, sample_input)
     s = self.repr_func.apply(repr_params, sample_input)
     pred_params = self.pred_func.init(rng_key, s)
@@ -86,6 +96,22 @@ class MuZero:
           obs_from_batch: bool = False,
           num_simulations: int = 5,
           *args, **kwargs):
+    """Acts given environment's observations.
+    
+    Parameters
+    ----------
+    rng_key: jax.random.PRNGKey.
+    obs: Array. The raw observations from environemnt.
+    with_pi: bool.
+    with_value: bool.
+    obs_from_batch: bool.
+    num_simulations: int, positive int. Argument for mctx.muzero_policy
+    args, kwargs: Arguments for mctx.muzero_policy
+    
+    Returns
+    ----------
+    
+    """
     if not obs_from_batch:
       obs = jnp.expand_dims(obs, axis=0)
     plan_output, root_value = self._plan(self.params, rng_key, obs, num_simulations,
