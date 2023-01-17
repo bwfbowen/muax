@@ -4,6 +4,10 @@ import jax
 
 
 class sliceable_deque(deque):
+    r"""A class implemented slice for collections.deque
+    
+    Reference: https://stackoverflow.com/questions/10003143/how-to-slice-a-deque
+    """
     def __getitem__(self, index):
         if isinstance(index, slice):
             return type(self)(islice(self, index.start,
