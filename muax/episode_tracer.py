@@ -176,3 +176,54 @@ class NStep(BaseTracer):
         Rn += v_next * gamman
 
         return Transition(obs=obs, a=a, r=r, done=done, Rn=Rn, v=v, pi=pi, w=w)
+
+
+class PNStep(NStep):
+    r"""
+    A short-term cache for :math:`n`-step bootstrapping with priority.
+
+    Parameters
+    ----------
+    n : positive int
+
+        The number of steps over which to bootstrap.
+
+    gamma : float between 0 and 1
+
+        The amount by which to discount future rewards.
+
+    alpha: float between 0 and 1
+        The PER alpha.
+    """
+    def __init__(self, n, gamma, alpha: float = 0.5):
+      self.alpha = float(alpha)
+      super().__init__(n, gamma)
+    
+    def pop(self):
+        # if not self:
+        #     raise InsufficientCacheError(
+        #         "cache needs to receive more transitions before it can be popped from")
+
+        # pop state-action (propensities) pair
+        obs, a, v, pi, w = self._deque_s.popleft()
+
+        # n-step partial return
+        rs = jnp.array(self._deque_r[:self.n])
+        Rn = jnp.sum(self._gammas[:len(rs)] * rs).item()
+        r = self._deque_r.popleft()
+
+        # keep in mind that we've already popped 
+        if len(self) >= self.n:
+            obs_next, a_next, v_next, pi_next, _ = self._deque_s[self.n - 1]
+            done = False
+            gamman = self._gamman
+        else:
+            # no more bootstrapping
+            obs_next, a_next, v_next, pi_next, done = obs, a, v, pi, True
+            gamman = self._gammas[len(rs)]
+        
+        Rn += v_next * gamman
+
+        w = abs(v - Rn) ** self.alpha
+
+        return Transition(obs=obs, a=a, r=r, done=done, Rn=Rn, v=v, pi=pi, w=w)
