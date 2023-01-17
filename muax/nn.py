@@ -6,15 +6,12 @@ import haiku as hk
 class Representation(hk.Module):
   def __init__(self, embedding_dim, name='representation'):
     super().__init__(name=name)
-    self.ffn = hk.Sequential([
-        hk.Linear(8), jax.nn.relu,
-        hk.Linear(8), jax.nn.relu,
-        hk.Linear(8), jax.nn.relu
+
+    self.repr_func = hk.Sequential([
+        hk.Linear(embedding_dim), jax.nn.relu
     ])
-    self.repr_func = hk.Linear(embedding_dim)
 
   def __call__(self, obs):
-    obs = self.ffn(obs)
     s = self.repr_func(obs)
     return s 
 
@@ -24,13 +21,11 @@ class Prediction(hk.Module):
     super().__init__(name=name)        
     
     self.v_func = hk.Sequential([
-        hk.Linear(8), jax.nn.relu,
-        hk.Linear(4), jax.nn.relu,
+        hk.Linear(16), jax.nn.relu,
         hk.Linear(1)
     ])
     self.pi_func = hk.Sequential([
-        hk.Linear(8), jax.nn.relu,
-        hk.Linear(4), jax.nn.relu,
+        hk.Linear(16), jax.nn.relu,
         hk.Linear(num_actions)
     ])
   
@@ -46,13 +41,11 @@ class Dynamic(hk.Module):
     super().__init__(name=name)
     
     self.ns_func = hk.Sequential([
-        hk.Linear(8), jax.nn.relu,
-        hk.Linear(8), jax.nn.relu,
+        hk.Linear(16), jax.nn.relu,
         hk.Linear(embedding_dim)
     ])
     self.r_func = hk.Sequential([
-        hk.Linear(8), jax.nn.relu,
-        hk.Linear(4), jax.nn.relu,
+        hk.Linear(16), jax.nn.relu,
         hk.Linear(1)
     ])
     self.cat_func = jax.jit(lambda s, a: 
