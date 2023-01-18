@@ -129,6 +129,16 @@ class MuZero:
     self._params, self._opt_state = self._update(self._params, self._opt_state, grads)
     loss_metric = {'loss': loss.item()}
     return loss_metric
+  
+  def save(self, file):
+    """Saves model parameters and optimizer state to the file"""
+    to_save = {'params': self.params, 'optimizer_state': self.optimizer_state}
+    jnp.save(file, to_save)
+  
+  def load(self, file):
+    """Loads model parameters and optimizer state from the saved file"""
+    saved = jnp.load(file, allow_pickle=True).item()
+    self._params, self._opt_state = saved['params'], saved['optimizer_state']
 
   @property
   def params(self):
