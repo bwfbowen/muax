@@ -126,8 +126,7 @@ class MuZero:
 
   def train(self, batch, c: float = 1e-4):
     loss, grads = jax.value_and_grad(self._loss_fn)(self._params, batch, c)
-    updates, self._opt_state = self._optimizer.update(grads, self._opt_state)
-    self._params = optax.apply_updates(self._params, updates)
+    self._params, self._opt_state = self._update(self._params, self._opt_state, grads)
     loss_metric = {'loss': loss.item()}
     return loss_metric
 
@@ -147,6 +146,12 @@ class MuZero:
                                num_simulations=num_simulations,
                                *args, **kwargs)
     return plan_output, root.value
+    
+  @partial(jax.jit, static_argnums=(0,))
+  def _update(self, params, optimizer_state, grads):
+    updates, optimizer_state = self._optimizer.update(grads, optimizer_state)
+    params = optax.apply_updates(params, updates)
+    return params, optimizer_state
   
   @partial(jax.jit, static_argnums=(0, 3))
   def _loss_fn(self, params, batch, c: float = 1e-4):
