@@ -192,7 +192,7 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
         """
         if batch_size is None and num_trajectory is None: 
           raise ValueError('Either num_trajectory or batch_size need to be given.')
-        if batch_size is not None:
+        elif batch_size is not None and num_trajectory is None:
           num_trajectory = batch_size 
           sample_per_trajectory = 1
         # sandwich sample in between setstate/getstate in case global random state was tampered with
