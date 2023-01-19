@@ -10,6 +10,7 @@ def _update(optimizer, params, optimizer_state, grads):
   params = optax.apply_updates(params, updates)
   return params, optimizer_state
 
+
 @partial(jax.jit, static_argnums=(0, 3))
 def _loss_fn(model, params, batch, c: float = 1e-4):
   loss = 0
@@ -51,8 +52,8 @@ def _loss_fn(model, params, batch, c: float = 1e-4):
   return loss
 
 
-def train(model, batch, loss_fn=_loss_fn, c: float = 1e-4):
-  loss, grads = jax.value_and_grad(loss_fn)(model.params, batch, c)
-  model._params, model._opt_state = model._update(model._params, model._opt_state, grads)
+def train(model, batch, optimizer, loss_fn=_loss_fn, update_fn=_update, c: float = 1e-4):
+  loss, grads = jax.value_and_grad(loss_fn)(model, model.params, batch, c)
+  model._params, model._opt_state = update_fn(optimizer, model._params, model._opt_state, grads)
   loss_metric = {'loss': loss.item()}
   return loss_metric  
