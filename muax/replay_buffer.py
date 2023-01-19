@@ -28,6 +28,7 @@ from abc import ABC, abstractmethod
 from collections import deque 
 from itertools import chain
 import random
+import numpy as np 
 import jax 
 from jax import numpy as jnp
 
@@ -89,7 +90,7 @@ class Trajectory:
           inner_treedef=jax.tree_util.tree_structure(Transition()),
           pytree_to_transpose=k_steps_sample
           )
-      sample = Transition(*(jnp.expand_dims(jnp.vstack(_attr), axis=0) for _attr in sample))
+      sample = Transition(*(np.expand_dims(np.vstack(_attr), axis=0) for _attr in sample))
       return sample
 
     def __getitem__(self, index):
@@ -209,7 +210,7 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
           outer_treedef=jax.tree_util.tree_structure([0 for i in batch]),
           inner_treedef=jax.tree_util.tree_structure(Transition()),
           pytree_to_transpose=batch)
-        batch = Transition(*(jnp.vstack(v) for v in batch))
+        batch = Transition(*(np.vstack(v) for v in batch))
         return batch
 
     def clear(self):
