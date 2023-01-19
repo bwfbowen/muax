@@ -7,19 +7,11 @@ import haiku as hk
 
 import warnings
 
+from .nn import Representation, Prediction, Dynamic  # Example modules
+
 class MuZero:
-  r"""Muzero algorithm"""
-  def __init__(self, 
-               embedding_dim,
-               num_actions,
-               representation_module,
-               prediction_module,
-               dynamic_module,
-               policy='muzero',
-               optimizer = optax.adam(0.01),
-               discount: float = 0.99
-               ):
-    """
+  r"""Muzero algorithm
+  
     TODO: more args, more flexible for repr, pred, dy modules
     
     Parameters
@@ -38,7 +30,17 @@ class MuZero:
     policy: str, value in `['muzero', 'gumbel']`. Determines which muzero policy in mctx to use. 
     optimizer: Optimizer to update the parameters of `representation_module`, `prediction_module` and `dynamic_module`.
     discount: Any. Used for mctx.RecurrentFnOutput.
-    """
+  """
+  def __init__(self, 
+               embedding_dim,
+               num_actions,
+               representation_module,
+               prediction_module,
+               dynamic_module,
+               policy='muzero',
+               optimizer = optax.adam(0.01),
+               discount: float = 0.99
+               ):
     self.repr_func = self._init_representation_func(representation_module, 
                                                     embedding_dim) 
     self.repr_func = hk.without_apply_rng(hk.transform(self.repr_func))
@@ -273,3 +275,4 @@ class MuZero:
       dy_model = dynamic_module(embedding_dim, num_actions)
       return dy_model(s, a)
     return dynamic_func 
+
