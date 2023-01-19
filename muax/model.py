@@ -5,6 +5,7 @@ import mctx
 import optax
 import haiku as hk 
 
+import warnings
 
 class MuZero:
   r"""Muzero algorithm"""
@@ -14,6 +15,7 @@ class MuZero:
                representation_module,
                prediction_module,
                dynamic_module,
+               policy='muzero',
                optimizer = optax.adam(0.01),
                discount: float = 0.99
                ):
@@ -33,6 +35,7 @@ class MuZero:
         which takes hidden state `s` as input and outputs prior logits `logits` and value `v` of the state.
     dynamic_module: A class inherents hk.Module,
         which takes hidden state `s` and action `a` as input and outputs reward `r` and next hidden state `ns`.
+    policy: str, value in `['muzero', 'gumbel']`. Determines which muzero policy in mctx to use. 
     optimizer: Optimizer to update the parameters of `representation_module`, `prediction_module` and `dynamic_module`.
     discount: Any. Used for mctx.RecurrentFnOutput.
     """
@@ -48,7 +51,7 @@ class MuZero:
                                            embedding_dim, num_actions)
     self.dy_func = hk.without_apply_rng(hk.transform(self.dy_func))
     
-    self._policy = jax.jit(mctx.muzero_policy, static_argnums=(3, 4, ))    
+    self._policy = self._init_policy(policy)
     self._optimizer = optimizer 
     self._discount = discount
 
@@ -56,7 +59,6 @@ class MuZero:
     self.embedding_dim = embedding_dim
   
   def init(self, rng_key, sample_input):
-    # TODO doc sample_input shape requirement
     """Inits `representation`, `prediction` and `dynamic` functions and optimizer
     
     Parameters
@@ -243,6 +245,16 @@ class MuZero:
   def _dy_apply(self, dy_params, s, a):
     r, ns = self.dy_func.apply(dy_params, s, a)
     return r, ns
+
+  def _init_policy(self, policy):
+    if policy == 'muzero':
+      policy_func = mctx.muzero_policy
+    elif policy == 'gumbel':
+      policy_func = mctx.gumbel_muzero_policy
+    else:
+      warnings.warn(f"{policy} is not in ['muzero', 'gumbel'], uses muzero policy instead")
+      policy_func = mctx.muzero_policy
+    return jax.jit(policy_func, static_argnums=(3, 4, ))
 
   def _init_representation_func(self, representation_module, embedding_dim):
     def representation_func(obs):
