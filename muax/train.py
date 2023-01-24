@@ -9,7 +9,7 @@ import gym
 from .episode_tracer import PNStep
 from .replay_buffer import Trajectory, TrajectoryReplayBuffer
 
-def train(model, env_id, 
+def fit(model, env_id, 
           tracer=PNStep(50, 0.997, 0.5), 
           buffer=TrajectoryReplayBuffer(500),
           max_episodes: int = 1000, 
