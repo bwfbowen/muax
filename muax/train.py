@@ -1,59 +1,64 @@
+import os
 from functools import partial
 import jax 
 from jax import numpy as jnp
 import optax 
+import coax
+import gym
 
+from .episode_tracer import PNStep
+from .replay_buffer import Trajectory, TrajectoryReplayBuffer
 
-@partial(jax.jit, static_argnums=(0,))
-def _update(optimizer, params, optimizer_state, grads):
-  updates, optimizer_state = optimizer.update(grads, optimizer_state)
-  params = optax.apply_updates(params, updates)
-  return params, optimizer_state
+def train(model, env_id, 
+          tracer=PNStep(50, 0.997, 0.5), 
+          buffer=TrajectoryReplayBuffer(500),
+          max_episodes: int = 1000, 
+          num_simulations: int = 50,
+          k_steps: int = 10,
+          buffer_warm_up: int = 128,
+          num_trajectory: int = 32,
+          sample_per_trajectory: int = 10,
+          name: str = None,
+          tensorboard_dir=None, 
+          random_seed: int = 42):
+  if name is None:
+    name = env_id 
+  if tensorboard_dir is None:
+    tensorboard_dir = './'
+  env = gym.make(env_id, render_mode='rgb_array')
+  env = coax.wrappers.TrainMonitor(env, name=name, tensorboard_dir=os.path.join(tensorboard_dir, name))
 
+  sample_input = jnp.expand_dims(jnp.zeros(env.observation_space.shape), axis=0)
+  key = jax.random.PRNGKey(random_seed)
+  key, subkey = jax.random.split(key)
+  model.init(subkey, sample_input) 
 
-@partial(jax.jit, static_argnums=(0, 3))
-def _loss_fn(model, params, batch, c: float = 1e-4):
-  loss = 0
-  B, L, _ = batch.a.shape
-  s = model._repr_apply(params['representation'], batch.obs[:, 0, :])
-  # TODO: jax.lax.scan (or stay with fori_loop ?)
-  def body_func(i, loss_s):
-    loss, s = loss_s
-    v, logits = model._pred_apply(params['prediction'], s)
-    r, s = model._dy_apply(params['dynamic'], s, batch.a[:, i, :].flatten())
-    # losses: reward
-    loss_r = jnp.mean(optax.l2_loss(r, 
-                                    jax.lax.stop_gradient(batch.r[:, i, :])
-                                    ))
-    # losses: value
-    loss_v = jnp.mean(optax.l2_loss(v, 
-                                    jax.lax.stop_gradient(batch.Rn[:, i, :])
-                                    ))
-    # losses: action weights
-    loss_pi = jnp.mean(optax.softmax_cross_entropy(logits, 
-                                                    jax.lax.stop_gradient(batch.pi[:, i, :])
-                                                    ))
-
-    loss += loss_r + loss_v + loss_pi 
-    loss_s = (loss, s)
-    return loss_s 
-  loss, _ = jax.lax.fori_loop(1, L, body_func, (loss, s))
-  # Appendix G Training: "irrespective of how many steps we unroll for"
-  loss /= L 
-
-  # L2 regularizer
-  # TODO: BUG all nan
-  # flatten_params, _ = jax.flatten_util.ravel_pytree(
-  #     jax.tree_map(lambda theta: jnp.linalg.norm(theta, ord=2), params)
-  #     )
-  
-  # loss += c * jnp.sum(flatten_params)
-  # print(f'loss2: {loss}')
-  return loss
-
-
-def train(model, batch, optimizer, loss_fn=_loss_fn, update_fn=_update, c: float = 1e-4):
-  loss, grads = jax.value_and_grad(loss_fn)(model, model.params, batch, c)
-  model._params, model._opt_state = update_fn(optimizer, model._params, model._opt_state, grads)
-  loss_metric = {'loss': loss.item()}
-  return loss_metric  
+  for ep in range(max_episodes):
+    obs, info = env.reset()
+    trajectory = Trajectory()
+    for t in range(env.spec.max_episode_steps):
+      key, subkey = jax.random.split(key)
+      a, pi, v = model.act(subkey, obs, 
+                           with_pi=True, 
+                           with_value=True, 
+                           obs_from_batch=False,
+                           num_simulations=50)
+      obs_next, r, done, truncated, info = env.step(a)
+      if truncated:
+        r = 1 / (1 - tracer.gamma)
+      tracer.add(obs, a, r, done or truncated, v=v, pi=pi)
+      while tracer:
+        trajectory.add(tracer.pop())
+      if done or truncated:
+        break 
+      obs = obs_next 
+    trajectory.finalize()
+    buffer.add(trajectory)
+    if len(buffer) >= buffer_warm_up:
+      for _ in range(t):
+        transition_batch = buffer.sample(num_trajectory=num_trajectory,
+                                         sample_per_trajectory=sample_per_trajectory,
+                                         k_steps=k_steps)
+        metrics = model.update(transition_batch)
+        env.record_metrics(metrics)
+    

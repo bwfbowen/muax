@@ -128,7 +128,7 @@ class MuZero:
     elif with_pi and not with_value: return action, plan_output.action_weights
     else: return action
 
-  def train(self, batch, c: float = 1e-4):
+  def update(self, batch, c: float = 1e-4):
     loss, grads = jax.value_and_grad(self._loss_fn)(self._params, batch, c)
     self._params, self._opt_state = self._update(self._params, self._opt_state, grads)
     loss_metric = {'loss': loss.item()}
