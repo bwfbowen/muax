@@ -51,6 +51,9 @@ class Transition:
       for field in dataclasses.fields(self):
         yield getattr(self, field.name)
 
+    def __getitem__(self, index):
+      return Transition(*(_attr[index] for _attr in self))
+
 def flatten_transition_func(transition: Transition) -> Tuple:
   return iter(transition), None 
 

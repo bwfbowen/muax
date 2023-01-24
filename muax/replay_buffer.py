@@ -43,6 +43,7 @@ class Trajectory:
     def __init__(self):
       self.trajectory = sliceable_deque([])
       self._transition_weight = sliceable_deque([])
+      self._batched_transitions = None
     
     def add(self, transition):
       """Adds a transition to the trajectory
@@ -54,6 +55,18 @@ class Trajectory:
       """
       self.trajectory.append(transition)
       self._transition_weight.append(transition.w)
+
+    
+    def finalize(self):
+      """"""
+      batched_transitions = jax.tree_util.tree_transpose(
+          outer_treedef=jax.tree_util.tree_structure([0 for i in self.trajectory]),
+          inner_treedef=jax.tree_util.tree_structure(Transition()),
+          pytree_to_transpose=self.trajectory
+          )
+      batched_transitions = Transition(*(np.expand_dims(np.vstack(_attr), axis=0)
+          for _attr in batched_transitions))
+      self._batched_transitions = batched_transitions
 
     
     def sample(self, num_samples: int = 1, k_steps: int = 5):
@@ -73,14 +86,19 @@ class Trajectory:
           L is the length(k) of the consecutive transitions.
       """
       if len(self) <= k_steps: return []
-      max_idx = len(self) - k_steps
-      idxes = random.choices(range(max_idx), 
-                             weights=self._transition_weight[:max_idx], 
-                             k=num_samples)
-      
-      samples = [self._get_sample(idx, k_steps) for idx in idxes]
+      if self.batched_transitions is None:
+        max_idx = len(self) - k_steps
+        idxes = random.choices(range(max_idx), 
+                              weights=self._transition_weight[:max_idx], 
+                              k=num_samples)
+        
+        samples = [self._get_sample(idx, k_steps) for idx in idxes]
       
       return samples
+
+    @property
+    def batched_transitions(self):
+      return self._batched_transitions
 
     def _get_sample(self, idx, k_steps):
       end_idx = idx + k_steps 
@@ -100,7 +118,7 @@ class Trajectory:
       return len(self.trajectory)
 
     def __repr__(self):
-      return f'{type(self)(len={len(self)})}'
+      return f'{type(self)}(len={len(self)})'
       
 
 class BaseReplayBuffer(ABC):
