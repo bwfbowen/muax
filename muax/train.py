@@ -57,7 +57,7 @@ def train(model, env_id,
         break 
       obs = obs_next 
     trajectory.finalize()
-    buffer.add(trajectory)
+    buffer.add(trajectory, trajectory.batched_transitions.w.mean())
     if len(buffer) >= buffer_warm_up:
       for _ in range(t):
         transition_batch = buffer.sample(num_trajectory=num_trajectory,

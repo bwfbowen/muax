@@ -95,8 +95,8 @@ class MuZero:
     return r, ns
 
   def act(self, rng_key, obs,
-          with_pi: bool = True,
-          with_value: bool = True,
+          with_pi: bool = False,
+          with_value: bool = False,
           obs_from_batch: bool = False,
           num_simulations: int = 5,
           *args, **kwargs):
