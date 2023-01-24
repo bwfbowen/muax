@@ -86,13 +86,15 @@ class Trajectory:
           L is the length(k) of the consecutive transitions.
       """
       if len(self) <= k_steps: return []
+      max_idx = len(self) - k_steps
+      idxes = random.choices(range(max_idx), 
+                            weights=self._transition_weight[:max_idx], 
+                            k=num_samples)
+                            
       if self.batched_transitions is None:
-        max_idx = len(self) - k_steps
-        idxes = random.choices(range(max_idx), 
-                              weights=self._transition_weight[:max_idx], 
-                              k=num_samples)
-        
-        samples = [self._get_sample(idx, k_steps) for idx in idxes]
+        self.finalize()
+
+      samples = [self._get_sample(idx, k_steps) for idx in idxes]
       
       return samples
 
@@ -102,13 +104,7 @@ class Trajectory:
 
     def _get_sample(self, idx, k_steps):
       end_idx = idx + k_steps 
-      k_steps_sample = self[idx: end_idx]
-      sample = jax.tree_util.tree_transpose(
-          outer_treedef=jax.tree_util.tree_structure([0 for i in k_steps_sample]),
-          inner_treedef=jax.tree_util.tree_structure(Transition()),
-          pytree_to_transpose=k_steps_sample
-          )
-      sample = Transition(*(np.expand_dims(np.vstack(_attr), axis=0) for _attr in sample))
+      sample = self.batched_transitions[:, idx: end_idx, :]
       return sample
 
     def __getitem__(self, index):
