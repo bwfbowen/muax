@@ -2,7 +2,6 @@ __version__ = '0.0.2.2'
 
 from .episode_tracer import NStep, PNStep
 from .replay_buffer import Trajectory, TrajectoryReplayBuffer
-from .nn import Representation, Prediction, Dynamic
 from .model import MuZero
 from .train import fit 
 
@@ -17,9 +16,6 @@ __all__ = (
   'PNStep',
   'Trajectory',
   'TrajectoryReplayBuffer',
-  'Representation',
-  'Prediction',
-  'Dynamic',
   'MuZero',
   'fit',
   'episode_tracer',
