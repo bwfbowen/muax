@@ -32,8 +32,6 @@ class MuZero:
     discount: Any. Used for mctx.RecurrentFnOutput.
   """
   def __init__(self, 
-               embedding_dim,
-               num_actions,
                representation_fn,
                prediction_fn,
                dynamic_fn,
@@ -49,9 +47,6 @@ class MuZero:
     self._policy = self._init_policy(policy)
     self._optimizer = optimizer 
     self._discount = discount
-
-    self.num_actions = num_actions
-    self.embedding_dim = embedding_dim
   
   def init(self, rng_key, sample_input):
     """Inits `representation`, `prediction` and `dynamic` functions and optimizer
