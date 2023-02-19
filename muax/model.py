@@ -20,12 +20,12 @@ class MuZero:
         The embedding dimension of hidden state `s`. Depends on the representation module. 
     num_actions: Any. 
         The maximum number of actions the policy can take. Depends on the prediction module and dynamic module.
-    representation_module: A class inherents hk.Module, 
+    representation_fn: A function initialized from a class which inherents hk.Module, 
         which takes raw observation `obs` from the environment as input and outputs the hidden state `s`.
         `s` will be the input of prediction_module and dynamic_module.
-    prediction_module: A class inherents hk.Module, 
+    prediction_fn: A function initialized from a class which inherents hk.Module, 
         which takes hidden state `s` as input and outputs prior logits `logits` and value `v` of the state.
-    dynamic_module: A class inherents hk.Module,
+    dynamic_fn: A function initialized from a class which inherents hk.Module,
         which takes hidden state `s` and action `a` as input and outputs reward `r` and next hidden state `ns`.
     policy: str, value in `['muzero', 'gumbel']`. Determines which muzero policy in mctx to use. 
     optimizer: Optimizer to update the parameters of `representation_module`, `prediction_module` and `dynamic_module`.
@@ -34,24 +34,17 @@ class MuZero:
   def __init__(self, 
                embedding_dim,
                num_actions,
-               representation_module,
-               prediction_module,
-               dynamic_module,
+               representation_fn,
+               prediction_fn,
+               dynamic_fn,
                policy='muzero',
                optimizer = optax.adam(0.01),
                discount: float = 0.99
                ):
-    self.repr_func = self._init_representation_func(representation_module, 
-                                                    embedding_dim) 
-    self.repr_func = hk.without_apply_rng(hk.transform(self.repr_func))
-
-    self.pred_func = self._init_prediction_func(prediction_module, 
-                                                num_actions)
-    self.pred_func = hk.without_apply_rng(hk.transform(self.pred_func))
-
-    self.dy_func = self._init_dynamic_func(dynamic_module, 
-                                           embedding_dim, num_actions)
-    self.dy_func = hk.without_apply_rng(hk.transform(self.dy_func))
+     
+    self.repr_func = hk.without_apply_rng(hk.transform(representation_fn))
+    self.pred_func = hk.without_apply_rng(hk.transform(prediction_fn))
+    self.dy_func = hk.without_apply_rng(hk.transform(dynamic_fn))
     
     self._policy = self._init_policy(policy)
     self._optimizer = optimizer 
@@ -258,21 +251,4 @@ class MuZero:
       policy_func = mctx.muzero_policy
     return jax.jit(policy_func, static_argnums=(3, 4, ))
 
-  def _init_representation_func(self, representation_module, embedding_dim):
-    def representation_func(obs):
-      repr_model = representation_module(embedding_dim)
-      return repr_model(obs)
-    return representation_func
-  
-  def _init_prediction_func(self, prediction_module, num_actions):
-    def prediction_func(s):
-      pred_model = prediction_module(num_actions)
-      return pred_model(s)
-    return prediction_func
-
-  def _init_dynamic_func(self, dynamic_module, embedding_dim, num_actions):
-    def dynamic_func(s, a):
-      dy_model = dynamic_module(embedding_dim, num_actions)
-      return dy_model(s, a)
-    return dynamic_func 
 
