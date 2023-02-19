@@ -7,7 +7,6 @@ import haiku as hk
 
 import warnings
 
-from .nn import Representation, Prediction, Dynamic  # Example modules
 
 class MuZero:
   r"""Muzero algorithm
