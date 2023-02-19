@@ -7,6 +7,8 @@ import haiku as hk
 
 import warnings
 
+from .utils import scale_gradient
+
 
 class MuZero:
   r"""Muzero algorithm
@@ -163,6 +165,8 @@ class MuZero:
     def body_func(i, loss_s):
       loss, s = loss_s
       v, logits = self._pred_apply(params['prediction'], s)
+      # Appendix G, scale the gradient at the start of the dynamics function by 1/2 
+      s = scale_gradient(s, 0.5)
       r, s = self._dy_apply(params['dynamic'], s, batch.a[:, i, :].flatten())
       # losses: reward
       loss_r = jnp.mean(

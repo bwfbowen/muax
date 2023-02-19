@@ -19,3 +19,6 @@ jax.tree_util.register_pytree_node(
   flatten_func=lambda sd: (sd, None),
   unflatten_func=lambda treedef, leaves: sliceable_deque(leaves)
 )
+
+def scale_gradient(g, scale: float = 1):
+    return g * scale + jax.lax.stop_gradient(g) * (1. - scale)
