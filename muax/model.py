@@ -165,17 +165,20 @@ class MuZero:
       v, logits = self._pred_apply(params['prediction'], s)
       r, s = self._dy_apply(params['dynamic'], s, batch.a[:, i, :].flatten())
       # losses: reward
-      loss_r = jnp.mean(optax.l2_loss(r, 
-                                      jax.lax.stop_gradient(batch.r[:, i, :])
-                                      ))
+      loss_r = jnp.mean(
+        optax.l2_loss(r, 
+        jax.lax.stop_gradient(batch.r[:, i, :])
+        ))
       # losses: value
-      loss_v = jnp.mean(optax.l2_loss(v, 
-                                      jax.lax.stop_gradient(batch.Rn[:, i, :])
-                                      ))
+      loss_v = jnp.mean(
+        optax.l2_loss(v, 
+        jax.lax.stop_gradient(batch.Rn[:, i, :])
+        ))
       # losses: action weights
-      loss_pi = jnp.mean(optax.softmax_cross_entropy(logits, 
-                                                     jax.lax.stop_gradient(batch.pi[:, i, :])
-                                                     ))
+      loss_pi = jnp.mean(
+        optax.softmax_cross_entropy(logits, 
+        jax.lax.stop_gradient(batch.pi[:, i, :])
+        ))
 
       loss += loss_r + loss_v + loss_pi 
       loss_s = (loss, s)
