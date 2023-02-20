@@ -3,9 +3,10 @@ from functools import partial
 import jax 
 from jax import numpy as jnp
 import optax 
-import coax
+# import coax
 import gym
 
+from .wrappers import TrainMonitor
 from .episode_tracer import PNStep
 from .replay_buffer import Trajectory, TrajectoryReplayBuffer
 
@@ -29,8 +30,8 @@ def fit(model, env_id,
     tensorboard_dir = '.'
   if save_path is None:
     save_path = 'model_params'
-  env = gym.make(env_id, render_mode='rgb_array')
-  env = coax.wrappers.TrainMonitor(env, name=name, tensorboard_dir=os.path.join(tensorboard_dir, name))
+  env = gym.make(env_id, render_mode='rgb_array', new_step_api=True)
+  env = TrainMonitor(env, name=name, tensorboard_dir=os.path.join(tensorboard_dir, name))
 
   sample_input = jnp.expand_dims(jnp.zeros(env.observation_space.shape), axis=0)
   key = jax.random.PRNGKey(random_seed)
@@ -38,7 +39,7 @@ def fit(model, env_id,
   model.init(subkey, sample_input) 
 
   for ep in range(max_episodes):
-    obs, info = env.reset()
+    obs = env.reset()    
     trajectory = Trajectory()
     for t in range(env.spec.max_episode_steps):
       key, subkey = jax.random.split(key)

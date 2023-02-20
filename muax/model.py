@@ -191,13 +191,10 @@ class MuZero:
     # Appendix G Training: "irrespective of how many steps we unroll for"
     loss /= L 
 
-    # L2 regularizer
-    # TODO: BUG all nan
-    # flatten_params, _ = jax.flatten_util.ravel_pytree(
-    #     jax.tree_map(lambda theta: jnp.linalg.norm(theta, ord=2), params)
-    #     )
-    
-    # loss += c * jnp.sum(flatten_params)
+    # L2 regulariser
+    l2_regulariser = 0.5 * sum(
+      jnp.sum(jnp.square(p)) for p in jax.tree_util.tree_leaves(params))
+    loss += c * jnp.sum(l2_regulariser)
     # print(f'loss2: {loss}')
     return loss
 

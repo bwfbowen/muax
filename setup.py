@@ -18,6 +18,6 @@ setuptools.setup(
   ],
   python_requires='>=3.6',
   py_modules=['muax'],
-  install_requires=['mctx', 'dm-haiku', 'optax', 'coax']
+  install_requires=['mctx', 'dm-haiku', 'optax', 'gymnasium', 'lz4', 'tensorboardX']
 )
   

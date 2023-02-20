@@ -25,4 +25,6 @@ def scale_gradient(g, scale: float = 1):
     return g * scale + jax.lax.stop_gradient(g) * (1. - scale)
 
 def min_max(state):
-    return (state-jnp.min(state)) / (jnp.max(state)-jnp.min(state))   
+    _min = jax.lax.stop_gradient(jnp.min(state))
+    _max = jax.lax.stop_gradient(jnp.max(state))
+    return (state - _min) / (_max - _min)   
