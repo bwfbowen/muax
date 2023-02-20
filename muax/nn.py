@@ -2,6 +2,7 @@ import jax
 from jax import numpy as jnp 
 import haiku as hk
 
+from .utils import min_max
 
 class Representation(hk.Module):
   def __init__(self, embedding_dim, name='representation'):
@@ -13,6 +14,7 @@ class Representation(hk.Module):
 
   def __call__(self, obs):
     s = self.repr_func(obs)
+    s = min_max(s)
     return s 
 
 
@@ -57,6 +59,7 @@ class Dynamic(hk.Module):
     sa = self.cat_func(s, a)
     r = self.r_func(sa)
     ns = self.ns_func(sa)
+    ns = min_max(ns)
     return r, ns
 
 
