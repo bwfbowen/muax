@@ -1,4 +1,4 @@
-__version__ = '0.0.2.3'
+__version__ = '0.0.2.4'
 
 from .episode_tracer import NStep, PNStep
 from .replay_buffer import Trajectory, TrajectoryReplayBuffer
