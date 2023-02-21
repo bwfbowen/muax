@@ -7,7 +7,7 @@ import haiku as hk
 
 import warnings
 
-from .utils import scale_gradient
+from .utils import scale_gradient, scalar_to_support, support_to_scalar, min_max
 
 
 class MuZero:
@@ -38,7 +38,8 @@ class MuZero:
                dynamic_fn,
                policy='muzero',
                optimizer = optax.adam(0.01),
-               discount: float = 0.99
+               discount: float = 0.99,
+               support_size: int = 10
                ):
      
     self.repr_func = hk.without_apply_rng(hk.transform(representation_fn))
@@ -48,6 +49,7 @@ class MuZero:
     self._policy = self._init_policy(policy)
     self._optimizer = optimizer 
     self._discount = discount
+    self._support_size = support_size
   
   def init(self, rng_key, sample_input):
     """Inits `representation`, `prediction` and `dynamic` functions and optimizer
@@ -160,6 +162,8 @@ class MuZero:
   def _loss_fn(self, params, batch, c: float = 1e-4):
     loss = 0
     B, L, _ = batch.a.shape
+    batch.r = scalar_to_support(batch.r, self._support_size)
+    batch.Rn = scalar_to_support(batch.Rn, self._support_size)
     s = self._repr_apply(params['representation'], batch.obs[:, 0, :])
     # TODO: jax.lax.scan (or stay with fori_loop ?)
     def body_func(i, loss_s):
@@ -170,12 +174,12 @@ class MuZero:
       r, s = self._dy_apply(params['dynamic'], s, batch.a[:, i, :].flatten())
       # losses: reward
       loss_r = jnp.mean(
-        optax.l2_loss(r, 
+        optax.softmax_cross_entropy(r, 
         jax.lax.stop_gradient(batch.r[:, i, :])
         ))
       # losses: value
       loss_v = jnp.mean(
-        optax.l2_loss(v, 
+        optax.softmax_cross_entropy(v, 
         jax.lax.stop_gradient(batch.Rn[:, i, :])
         ))
       # losses: action weights
@@ -227,6 +231,7 @@ class MuZero:
   @partial(jax.jit, static_argnums=(0,))
   def _repr_apply(self, repr_params, obs):
     s = self.repr_func.apply(repr_params, obs)
+    
     return s
 
   @partial(jax.jit, static_argnums=(0,))

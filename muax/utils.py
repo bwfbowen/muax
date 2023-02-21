@@ -25,6 +25,7 @@ SOFTWARE.
 
 from collections import deque
 from itertools import islice
+from functools import partial
 import jax
 from jax import numpy as jnp
 
@@ -51,9 +52,8 @@ def scale_gradient(g, scale: float = 1):
     return g * scale + jax.lax.stop_gradient(g) * (1. - scale)
 
 
-def min_max(state):
-    _min = jax.lax.stop_gradient(jnp.min(state))
-    _max = jax.lax.stop_gradient(jnp.max(state))
+@partial(jax.jit, static_argnums=(1, 2,))
+def min_max(state, _min: float, _max: float):
     return (state - _min) / (_max - _min)   
 
 
@@ -81,8 +81,8 @@ def scalar_to_support(x, support_size):
     prob_low = 1. - prob_high
     idx_low = low + support_size
     idx_high = high + support_size
-    support_low = jax.nn.one_hot(idx_low, support_size) * prob_low[..., None]
-    support_high = jax.nn.one_hot(idx_high, support_size) * prob_high[..., None]
+    support_low = jax.nn.one_hot(idx_low, 2 * support_size + 1) * prob_low[..., None]
+    support_high = jax.nn.one_hot(idx_high, 2 * support_size + 1) * prob_high[..., None]
     return support_low + support_high
 
 
