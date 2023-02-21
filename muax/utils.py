@@ -86,12 +86,12 @@ def scalar_to_support(x, support_size):
     return support_low + support_high
 
 
-def support_to_scalar(logits, support_size):
+def support_to_scalar(probs, support_size):
     """"""
 
     x = jnp.sum(
       (jnp.arange(2*support_size+1) - support_size)
-       * jax.nn.softmax(logits),
+       * probs,
         axis=-1)
     x = _inv_scaling(x)
     return x 

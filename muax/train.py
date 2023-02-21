@@ -53,7 +53,9 @@ def fit(model, env_id,
         r = 1 / (1 - tracer.gamma)
       tracer.add(obs, a, r, done or truncated, v=v, pi=pi)
       while tracer:
-        trajectory.add(tracer.pop())
+        trans = tracer.pop()
+        trajectory.add(trans)
+        env.record_metrics({'v': trans.v, 'Rn': trans.Rn})
       if done or truncated:
         break 
       obs = obs_next 

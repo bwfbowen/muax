@@ -206,7 +206,7 @@ class MuZero:
   def _root_inference(self, params, rng_key, obs):
     s = self._repr_apply(params['representation'], obs)
     v, logits = self._pred_apply(params['prediction'], s)  
-    v = v.flatten()
+    v = support_to_scalar(jax.nn.softmax(v), self._support_size).flatten()
     root = mctx.RootFnOutput(
         prior_logits=logits,
         value=v,
@@ -218,7 +218,8 @@ class MuZero:
   def _recurrent_inference(self, params, rng_key, action, embedding):
     r, next_embedding = self._dy_apply(params['dynamic'], embedding, action)
     v, logits = self._pred_apply(params['prediction'], embedding)
-    r, v = r.flatten(), v.flatten()
+    r = support_to_scalar(jax.nn.softmax(r), self._support_size).flatten()
+    v = support_to_scalar(jax.nn.softmax(v), self._support_size).flatten()
     discount = jnp.ones_like(r) * self._discount
     recurrent_output = mctx.RecurrentFnOutput(
         reward=r,
