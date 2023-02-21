@@ -1,3 +1,28 @@
+"""
+MIT License
+
+Copyright (c) 2022 Zeyu Zheng
+Copyright (c) 2023 bf2504@columbia.edu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 from collections import deque
 from itertools import islice
 import jax
@@ -47,7 +72,26 @@ def _inv_scaling(x, eps: float = 1e-3):
 
 
 def scalar_to_support(x, support_size):
+    """"""
     x = _scaling(x)
     x = jnp.clip(x, -support_size, support_size)
     low = jnp.floor(x).astype(jnp.int32) 
     high = jnp.ceil(x).astype(jnp.int32)
+    prob_high = x - low
+    prob_low = 1. - prob_high
+    idx_low = low + support_size
+    idx_high = high + support_size
+    support_low = jax.nn.one_hot(idx_low, support_size) * prob_low[..., None]
+    support_high = jax.nn.one_hot(idx_high, support_size) * prob_high[..., None]
+    return support_low + support_high
+
+
+def support_to_scalar(logits, support_size):
+    """"""
+
+    x = jnp.sum(
+      (jnp.arange(2*support_size+1) - support_size)
+       * jax.nn.softmax(logits),
+        axis=-1)
+    x = _inv_scaling(x)
+    return x 
