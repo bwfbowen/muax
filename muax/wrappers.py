@@ -205,7 +205,7 @@ class TrainMonitor(Wrapper, LoggerMixin):
         self._ep_actions = StreamingSample(maxlen=1000)
         self._period = {'T': {}, 'ep': {}}
 
-    def reset(self):
+    def reset(self, seed=None):
         # write logs from previous episode:
         if self.ep:
             self._write_episode_logs()
@@ -221,7 +221,7 @@ class TrainMonitor(Wrapper, LoggerMixin):
         self._ep_metrics = {}
         self._ep_actions.reset()
 
-        return self.env.reset()
+        return self.env.reset(seed=seed)
 
     @property
     def dt_ms(self):
