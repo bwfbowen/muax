@@ -268,6 +268,6 @@ class MuZero:
     else:
       warnings.warn(f"{policy} is not in ['muzero', 'gumbel'], uses muzero policy instead")
       policy_func = mctx.muzero_policy
-    return jax.jit(policy_func, static_argnums=(3, 4, 13), backend='cpu')
+    return jax.jit(policy_func, static_argnums=(3, 4,), static_argnames=('temperature',), backend='cpu')
 
 
