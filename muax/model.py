@@ -37,7 +37,20 @@ class MuZero:
                prediction_fn,
                dynamic_fn,
                policy='muzero',
-               optimizer = optax.adam(0.01),
+               optimizer = optax.chain(
+                 optax.clip_by_global_norm(1.0),  
+                 optax.scale_by_adam(),  
+                 optax.scale_by_schedule(
+                   optax.warmup_exponential_decay_schedule(
+                     init_value=0, 
+                     peak_value=2e-2,
+                     end_value=1e-4,
+                     warmup_steps=10000,
+                     transition_steps=10000,
+                     decay_rate=0.8)
+                     ),  
+                optax.scale(-1.0)
+                ),
                discount: float = 0.99,
                support_size: int = 10
                ):
