@@ -31,7 +31,7 @@ def fit(model, env_id,
   if save_path is None:
     save_path = 'model_params'
   env = gym.make(env_id, render_mode='rgb_array', new_step_api=True)
-  env.seed(random_seed)
+  # env.seed(random_seed)
   env = TrainMonitor(env, name=name, tensorboard_dir=os.path.join(tensorboard_dir, name))
 
   sample_input = jnp.expand_dims(jnp.zeros(env.observation_space.shape), axis=0)
@@ -40,7 +40,7 @@ def fit(model, env_id,
   model.init(subkey, sample_input) 
 
   for ep in range(max_episodes):
-    obs = env.reset()    
+    obs = env.reset(seed=random_seed)    
     trajectory = Trajectory()
     for t in range(env.spec.max_episode_steps):
       key, subkey = jax.random.split(key)
