@@ -10,16 +10,23 @@ import warnings
 from .utils import scale_gradient, scalar_to_support, support_to_scalar, min_max
 
 
-def optimizer():
+def optimizer(init_value=0,
+              peak_value=2e-2, 
+              end_value=1e-3,
+              warmup_steps=1000,
+              transition_steps=10000,
+              decay_rate=0.8,
+              clip_by_global_norm=1.0
+              ):
   scheduler = optax.warmup_exponential_decay_schedule(
-    init_value=0, 
-    peak_value=2e-2,
-    end_value=1e-4,
-    warmup_steps=1000,
-    transition_steps=1000,
-    decay_rate=0.8)
+    init_value=init_value, 
+    peak_value=peak_value,
+    end_value=end_value,
+    warmup_steps=warmup_steps,
+    transition_steps=transition_steps,
+    decay_rate=decay_rate)
   gradient_transform = optax.chain(
-      optax.clip_by_global_norm(1.0),  # Clip by the gradient by the global norm.
+      optax.clip_by_global_norm(clip_by_global_norm),  # Clip by the gradient by the global norm.
       optax.scale_by_adam(),  # Use the updates from adam.
       optax.scale_by_schedule(scheduler),  # Use the learning rate from the scheduler.
       # Scale updates by -1 since optax.apply_updates is additive and we want to descend on the loss.
