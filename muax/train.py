@@ -10,11 +10,22 @@ from .wrappers import TrainMonitor
 from .episode_tracer import PNStep
 from .replay_buffer import Trajectory, TrajectoryReplayBuffer
 
+
+def _temperature_fn(max_training_steps, training_steps):
+  if training_steps < 0.5 * max_training_steps:
+      return 1.0
+  elif training_steps < 0.75 * max_training_steps:
+      return 0.5
+  else:
+      return 0.25
+
+
 def fit(model, env_id, 
           tracer=PNStep(50, 0.997, 0.5), 
           buffer=TrajectoryReplayBuffer(500),
           max_episodes: int = 1000, 
-          save_every_n_eps: int = 50,
+          max_training_steps: int = 10000,
+          save_every_n_steps: int = 1000,
           num_simulations: int = 50,
           k_steps: int = 10,
           buffer_warm_up: int = 128,
@@ -23,7 +34,9 @@ def fit(model, env_id,
           name: str = None,
           tensorboard_dir=None, 
           save_path=None,
-          random_seed: int = 42):
+          random_seed: int = 42,
+          temperature_fn=_temperature_fn
+          ):
   if name is None:
     name = env_id 
   if tensorboard_dir is None:
@@ -39,16 +52,20 @@ def fit(model, env_id,
   key, subkey = jax.random.split(key)
   model.init(subkey, sample_input) 
 
+  training_step = 0
+
   for ep in range(max_episodes):
     obs = env.reset(seed=random_seed)    
     trajectory = Trajectory()
+    temperature = temperature_fn(max_training_steps=max_training_steps, training_step=training_step)
     for t in range(env.spec.max_episode_steps):
       key, subkey = jax.random.split(key)
       a, pi, v = model.act(subkey, obs, 
                            with_pi=True, 
                            with_value=True, 
                            obs_from_batch=False,
-                           num_simulations=num_simulations)
+                           num_simulations=num_simulations,
+                           temperature=temperature)
       obs_next, r, done, truncated, info = env.step(a)
       if truncated:
         r = 1 / (1 - tracer.gamma)
@@ -68,8 +85,10 @@ def fit(model, env_id,
                                          sample_per_trajectory=sample_per_trajectory,
                                          k_steps=k_steps)
         metrics = model.update(transition_batch)
+        training_step += 1
         env.record_metrics(metrics)
-    if ep % save_every_n_eps == 0:
-      model.save(save_path)
+        if training_step % save_every_n_steps == 0:
+          model.save(save_path)
+        if training_step >= max_training_steps:
+          return model
   return model
-    
