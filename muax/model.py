@@ -103,7 +103,7 @@ class MuZero:
           with_value: bool = False,
           obs_from_batch: bool = False,
           num_simulations: int = 5,
-          temperature: float = 1,
+          temperature: float = 1.,
           *args, **kwargs):
     """Acts given environment's observations.
     
@@ -123,7 +123,7 @@ class MuZero:
     """
     if not obs_from_batch:
       obs = jnp.expand_dims(obs, axis=0)
-    plan_output, root_value = self._plan(self.params, rng_key, obs, num_simulations, temperature
+    plan_output, root_value = self._plan(self.params, rng_key, obs, num_simulations, temperature,
                                         *args, **kwargs)
     root_value = root_value.item() if not obs_from_batch else root_value
     action = plan_output.action.item() if not obs_from_batch else plan_output.action
@@ -159,7 +159,7 @@ class MuZero:
 
   def _plan(self, params, rng_key, obs,
            num_simulations: int = 5,
-           temperature: float = 1,
+           temperature: float = 1.,
            *args, **kwargs):
     root = self._root_inference(params, rng_key, obs)
     plan_output = self._policy(params, rng_key, root, self._recurrent_inference,
