@@ -137,7 +137,8 @@ class MuZero:
     loss, grads = jax.value_and_grad(self._loss_fn)(self._params, batch, c)
     self._params, self._opt_state = self._update(self._params, self._opt_state, grads)
     loss_metric = {'loss': loss.item()}
-    return loss_metric
+    lr_metric = {'lr': self._opt_state.hyperparams['learning_rate']}
+    return loss_metric, lr_metric
   
   def save(self, file):
     """Saves model parameters and optimizer state to the file"""

@@ -87,13 +87,14 @@ def fit(model, env_id,
         transition_batch = buffer.sample(num_trajectory=num_trajectory,
                                          sample_per_trajectory=sample_per_trajectory,
                                          k_steps=k_steps)
-        metrics = model.update(transition_batch)
+        loss_metric, lr_metric = model.update(transition_batch)
         training_step += 1
-        env.record_metrics(metrics)
+        env.record_metrics(loss_metric)
+        env.record_metrics(lr_metric)
         if training_step % save_every_n_steps == 0:
           model.save(save_path)
         if training_step >= max_training_steps:
           return model
     env.record_metrics({'training_step': training_step})
-    
+
   return model
