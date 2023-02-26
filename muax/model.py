@@ -10,7 +10,6 @@ import warnings
 from .utils import scale_gradient, scalar_to_support, support_to_scalar, min_max
 
 
-@optax.inject_hyperparams
 def optimizer():
   scheduler = optax.warmup_exponential_decay_schedule(
     init_value=0, 
@@ -143,8 +142,8 @@ class MuZero:
     loss, grads = jax.value_and_grad(self._loss_fn)(self._params, batch, c)
     self._params, self._opt_state = self._update(self._params, self._opt_state, grads)
     loss_metric = {'loss': loss.item()}
-    lr_metric = {'lr': self._opt_state.hyperparams['learning_rate']}
-    return loss_metric, lr_metric
+    
+    return loss_metric
   
   def save(self, file):
     """Saves model parameters and optimizer state to the file"""
