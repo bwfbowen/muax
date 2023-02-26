@@ -35,7 +35,8 @@ def fit(model, env_id,
           tensorboard_dir=None, 
           save_path=None,
           random_seed: int = 42,
-          temperature_fn=_temperature_fn
+          temperature_fn=_temperature_fn,
+          log_all_metrics=False,
           ):
   if name is None:
     name = env_id 
@@ -45,7 +46,9 @@ def fit(model, env_id,
     save_path = 'model_params'
   env = gym.make(env_id, render_mode='rgb_array', new_step_api=True)
   # env.seed(random_seed)
-  env = TrainMonitor(env, name=name, tensorboard_dir=os.path.join(tensorboard_dir, name))
+  env = TrainMonitor(env, name=name, 
+    tensorboard_dir=os.path.join(tensorboard_dir, name),
+    log_all_metrics=log_all_metrics)
 
   sample_input = jnp.expand_dims(jnp.zeros(env.observation_space.shape), axis=0)
   key = jax.random.PRNGKey(random_seed)
@@ -91,4 +94,6 @@ def fit(model, env_id,
           model.save(save_path)
         if training_step >= max_training_steps:
           return model
+    env.record_metrics({'training_step': training_step})
+    
   return model
