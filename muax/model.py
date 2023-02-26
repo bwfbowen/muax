@@ -232,7 +232,6 @@ class MuZero:
   @partial(jax.jit, static_argnums=(0,))
   def _repr_apply(self, repr_params, obs):
     s = self.repr_func.apply(repr_params, obs)
-    
     return s
 
   @partial(jax.jit, static_argnums=(0,))
