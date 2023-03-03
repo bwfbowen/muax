@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
   
 setuptools.setup(
   name='muax',
-  version='0.0.2.4',
+  version='0.0.2.5',
   authors = [{ 'name': "Bowen Fang", 'email': "bf2504@columbia.edu" },
              {'name': 'Ian Chie', 'email': 'cc4893@columbia.edu'}],
   description="A library written in Jax that provides help for using DeepMind's mctx on gym-style environments.",
