@@ -145,8 +145,8 @@ class MuZero:
     elif with_pi and not with_value: return action, plan_output.action_weights
     else: return action
 
-  def update(self, batch, c: float = 1e-4):
-    loss, grads = jax.value_and_grad(self._loss_fn)(self._params, batch, c)
+  def update(self, batch):
+    loss, grads = jax.value_and_grad(self._loss_fn)(self._params, batch)
     self._params, self._opt_state = self._update(self._params, self._opt_state, grads)
     loss_metric = {'loss': loss.item()}
     
@@ -187,9 +187,10 @@ class MuZero:
     params = optax.apply_updates(params, updates)
     return params, optimizer_state
   
-  @partial(jax.jit, static_argnums=(0, 3))
-  def _loss_fn(self, params, batch, c: float = 1e-4):
+  @partial(jax.jit, static_argnums=(0, ))
+  def _loss_fn(self, params, batch):
     loss = 0
+    c = 1e-4
     B, L, _ = batch.a.shape
     batch.r = scalar_to_support(batch.r, self._support_size)
     batch.Rn = scalar_to_support(batch.Rn, self._support_size)

@@ -8,7 +8,7 @@ class Representation(hk.Module):
     super().__init__(name=name)
 
     self.repr_func = hk.Sequential([
-        hk.Linear(embedding_dim)
+        hk.Linear(embedding_dim), jax.nn.relu
     ])
 
   def __call__(self, obs):
@@ -21,11 +21,11 @@ class Prediction(hk.Module):
     super().__init__(name=name)        
     
     self.v_func = hk.Sequential([
-        hk.Linear(16), jax.nn.elu,
+        hk.Linear(16), jax.nn.relu,
         hk.Linear(full_support_size)
     ])
     self.pi_func = hk.Sequential([
-        hk.Linear(16), jax.nn.elu,
+        hk.Linear(16), jax.nn.relu,
         hk.Linear(num_actions)
     ])
   
@@ -41,11 +41,11 @@ class Dynamic(hk.Module):
     super().__init__(name=name)
     
     self.ns_func = hk.Sequential([
-        hk.Linear(16), jax.nn.elu,
+        hk.Linear(16), jax.nn.relu,
         hk.Linear(embedding_dim)
     ])
     self.r_func = hk.Sequential([
-        hk.Linear(16), jax.nn.elu,
+        hk.Linear(16), jax.nn.relu,
         hk.Linear(full_support_size)
     ])
     self.cat_func = jax.jit(lambda s, a: 
