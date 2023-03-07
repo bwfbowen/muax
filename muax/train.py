@@ -58,6 +58,7 @@ def fit(model, env_id,
   training_step = 0
 
   for ep in range(max_episodes):
+    # random_seed += 1
     obs, info = env.reset(seed=random_seed)    
     trajectory = Trajectory()
     temperature = temperature_fn(max_training_steps=max_training_steps, training_steps=training_step)
