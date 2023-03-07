@@ -4,7 +4,7 @@ import jax
 from jax import numpy as jnp
 import optax 
 # import coax
-import gym
+import gymnasium as gym 
 
 from .wrappers import TrainMonitor
 from .episode_tracer import PNStep
@@ -44,7 +44,7 @@ def fit(model, env_id,
     tensorboard_dir = '.'
   if save_path is None:
     save_path = 'model_params'
-  env = gym.make(env_id, render_mode='rgb_array', new_step_api=True)
+  env = gym.make(env_id, render_mode='rgb_array')
   # env.seed(random_seed)
   env = TrainMonitor(env, name=name, 
     tensorboard_dir=os.path.join(tensorboard_dir, name),
@@ -58,7 +58,7 @@ def fit(model, env_id,
   training_step = 0
 
   for ep in range(max_episodes):
-    obs = env.reset(seed=random_seed)    
+    obs, info = env.reset(seed=random_seed)    
     trajectory = Trajectory()
     temperature = temperature_fn(max_training_steps=max_training_steps, training_steps=training_step)
     for t in range(env.spec.max_episode_steps):
