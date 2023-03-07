@@ -35,6 +35,16 @@ def optimizer(init_value=0,
   return gradient_transform
 
 
+@jax.jit
+def min_max_normalize(s):
+  s_min = s.min(axis=1, keepdims=True)[0]
+  s_max = s.max(axis=1, keepdims=True)[0]
+  s_scale = s_max - s_min 
+  s_scale = jnp.where(s_scale < 1e-5, s_scale + 1e-5, s_scale)
+  s_normed = (s - s_min) / (s_scale)
+  return s_normed
+
+
 class MuZero:
   r"""Muzero algorithm
   
@@ -262,6 +272,7 @@ class MuZero:
   @partial(jax.jit, static_argnums=(0,))
   def _repr_apply(self, repr_params, obs):
     s = self.repr_func.apply(repr_params, obs)
+    s = min_max_normalize(s)
     return s
 
   @partial(jax.jit, static_argnums=(0,))
@@ -272,6 +283,7 @@ class MuZero:
   @partial(jax.jit, static_argnums=(0,))
   def _dy_apply(self, dy_params, s, a):
     r, ns = self.dy_func.apply(dy_params, s, a)
+    ns = min_max_normalize(ns)
     return r, ns
 
   def _init_policy(self, policy):
