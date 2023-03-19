@@ -202,8 +202,8 @@ class MuZero:
     loss = 0
     c = 1e-4
     B, L, _ = batch.a.shape
-    batch.r = scalar_to_support(batch.r, self._support_size)
-    batch.Rn = scalar_to_support(batch.Rn, self._support_size)
+    batch.r = scalar_to_support(batch.r, self._support_size).reshape(B, L, -1)
+    batch.Rn = scalar_to_support(batch.Rn, self._support_size).reshape(B, L, -1)
     s = self._repr_apply(params['representation'], batch.obs[:, 0, :])
     # TODO: jax.lax.scan (or stay with fori_loop ?)
     def body_func(i, loss_s):
