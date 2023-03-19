@@ -222,8 +222,8 @@ class PNStep(NStep):
             gamman = self._gamman
         else:
             # no more bootstrapping
-            obs_next, a_next, v_next, pi_next, done = obs, a, v, pi, True
-            gamman = self._gammas[len(rs)]
+            v_next = 0
+            gamman = self._gammas[len(rs) - 1]
         
         Rn += v_next * gamman
 
