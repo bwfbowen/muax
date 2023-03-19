@@ -174,6 +174,7 @@ class NStep(BaseTracer):
         else:
             # no more bootstrapping
             v_next = 0
+            done = True
             gamman = self._gammas[len(rs) - 1]
         
         Rn += v_next * gamman
@@ -223,6 +224,7 @@ class PNStep(NStep):
         else:
             # no more bootstrapping
             v_next = 0
+            done = True
             gamman = self._gammas[len(rs) - 1]
         
         Rn += v_next * gamman
