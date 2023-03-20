@@ -1,4 +1,4 @@
-__version__ = '0.0.2.4'
+__version__ = '0.0.2.6'
 
 from .episode_tracer import NStep, PNStep
 from .replay_buffer import Trajectory, TrajectoryReplayBuffer
@@ -10,6 +10,7 @@ from . import replay_buffer
 from . import nn 
 from . import model 
 from . import train
+from . import test
 
 __all__ = (
   'NStep',
@@ -22,5 +23,6 @@ __all__ = (
   'replay_buffer',
   'nn',
   'model',
-  'train'
+  'train',
+  'test'
 )
