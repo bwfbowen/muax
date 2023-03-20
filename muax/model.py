@@ -2,6 +2,7 @@ from functools import partial
 import jax
 from jax import numpy as jnp 
 import mctx 
+from mctx import qtransform_by_parent_and_siblings, qtransform_completed_by_mix_value
 import optax
 import haiku as hk 
 
@@ -82,6 +83,7 @@ class MuZero:
     self.dy_func = hk.without_apply_rng(hk.transform(dynamic_fn))
     
     self._policy = self._init_policy(policy)
+    self._policy_type = policy
     self._optimizer = optimizer 
     self._discount = discount
     self._support_size = support_size
@@ -126,7 +128,16 @@ class MuZero:
           obs_from_batch: bool = False,
           num_simulations: int = 5,
           temperature: float = 1.,
-          *args, **kwargs):
+          invalid_actions=None,
+          max_depth: int = None, 
+          loop_fn = jax.lax.fori_loop,
+          qtransform=None, 
+          dirichlet_fraction: float = 0.25, 
+          dirichlet_alpha: float = 0.3, 
+          pb_c_init: float = 1.25, 
+          pb_c_base: float = 19652, 
+          max_num_considered_actions: int = 16, 
+          gumbel_scale: float = 1):
     """Acts given environment's observations.
     
     Parameters
@@ -137,7 +148,7 @@ class MuZero:
     with_value: bool.
     obs_from_batch: bool.
     num_simulations: int, positive int. Argument for mctx.muzero_policy
-    args, kwargs: Arguments for mctx.muzero_policy
+    
     
     Returns
     ----------
@@ -146,7 +157,16 @@ class MuZero:
     if not obs_from_batch:
       obs = jnp.expand_dims(obs, axis=0)
     plan_output, root_value = self._plan(self.params, rng_key, obs, num_simulations, temperature,
-                                        *args, **kwargs)
+                                         invalid_actions=invalid_actions,
+                                         max_depth=max_depth, 
+                                         loop_fn=loop_fn,
+                                         qtransform=qtransform, 
+                                         dirichlet_fraction=dirichlet_fraction, 
+                                         dirichlet_alpha=dirichlet_alpha, 
+                                         pb_c_init=pb_c_init, 
+                                         pb_c_base=pb_c_base,
+                                         max_num_considered_actions=max_num_considered_actions,
+                                         gumbel_scale=gumbel_scale)
     root_value = root_value.item() if not obs_from_batch else root_value
     action = plan_output.action.item() if not obs_from_batch else plan_output.action
 
@@ -183,12 +203,42 @@ class MuZero:
   def _plan(self, params, rng_key, obs,
            num_simulations: int = 5,
            temperature: float = 1.,
-           *args, **kwargs):
+          invalid_actions=None,
+          max_depth: int = None, 
+          loop_fn = jax.lax.fori_loop,
+          qtransform=None, 
+          dirichlet_fraction: float = 0.25, 
+          dirichlet_alpha: float = 0.3, 
+          pb_c_init: float = 1.25, 
+          pb_c_base: float = 19652,
+          max_num_considered_actions: int = 16,
+          gumbel_scale: float = 1):
     root = self._root_inference(params, rng_key, obs)
-    plan_output = self._policy(params, rng_key, root, self._recurrent_inference,
-                               num_simulations=num_simulations,
-                               temperature=temperature,
-                               *args, **kwargs)
+    if self._policy_type == 'muzero':
+      if qtransform is None:
+        qtransform = qtransform_by_parent_and_siblings
+      plan_output = self._policy(params, rng_key, root, self._recurrent_inference,
+                                num_simulations=num_simulations,
+                                temperature=temperature,
+                                invalid_actions=invalid_actions,
+                                max_depth=max_depth, 
+                                loop_fn=loop_fn,
+                                qtransform=qtransform, 
+                                dirichlet_fraction=dirichlet_fraction, 
+                                dirichlet_alpha=dirichlet_alpha, 
+                                pb_c_init=pb_c_init, 
+                                pb_c_base=pb_c_base)
+    elif self._policy_type == 'gumbel':
+      if qtransform is None:
+        qtransform = qtransform_completed_by_mix_value
+      plan_output = self._policy(params, rng_key, root, self._recurrent_inference,
+                                num_simulations=num_simulations,
+                                invalid_actions=invalid_actions, 
+                                max_depth=max_depth, 
+                                loop_fn=loop_fn, 
+                                qtransform=qtransform, 
+                                max_num_considered_actions=max_num_considered_actions, 
+                                gumbel_scale=gumbel_scale)
     return plan_output, root.value
     
   @partial(jax.jit, static_argnums=(0,))
@@ -289,11 +339,18 @@ class MuZero:
   def _init_policy(self, policy):
     if policy == 'muzero':
       policy_func = mctx.muzero_policy
+      return jax.jit(policy_func, 
+                     static_argnames=('temperature', 'recurrent_fn', 'num_simulations', 'loop_fn', 'qtransform', 'max_depth', 'dirichlet_fraction', 'dirichlet_alpha', 'pb_c_init', 'pb_c_base'),
+                     backend='cpu')
     elif policy == 'gumbel':
       policy_func = mctx.gumbel_muzero_policy
+      return jax.jit(policy_func, static_argnames=('recurrent_fn', 'num_simulations', 'max_num_considered_actions', 'gumbel_scale', 'loop_fn', 'qtransform', 'max_depth'), 
+                     backend='cpu')
     else:
       warnings.warn(f"{policy} is not in ['muzero', 'gumbel'], uses muzero policy instead")
       policy_func = mctx.muzero_policy
-    return jax.jit(policy_func, static_argnames=('temperature', 'recurrent_fn', 'num_simulations'), backend='cpu')
+      return jax.jit(policy_func, 
+                     static_argnames=('temperature', 'recurrent_fn', 'num_simulations', 'loop_fn', 'qtransform', 'max_depth', 'dirichlet_fraction', 'dirichlet_alpha', 'pb_c_init', 'pb_c_base'), 
+                     backend='cpu')
 
 
