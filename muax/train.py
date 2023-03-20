@@ -9,6 +9,7 @@ import gymnasium as gym
 from .wrappers import TrainMonitor
 from .episode_tracer import PNStep
 from .replay_buffer import Trajectory, TrajectoryReplayBuffer
+from .test import test
 
 
 def _temperature_fn(max_training_steps, training_steps):
@@ -24,6 +25,8 @@ def fit(model, env_id,
           tracer=PNStep(50, 0.997, 0.5), 
           buffer=TrajectoryReplayBuffer(500),
           max_episodes: int = 1000, 
+          test_interval: int = 10,
+          num_test_episodes: int = 10,
           max_training_steps: int = 10000,
           save_every_n_steps: int = 1000,
           num_simulations: int = 50,
@@ -45,20 +48,24 @@ def fit(model, env_id,
   if save_path is None:
     save_path = 'model_params'
   env = gym.make(env_id, render_mode='rgb_array')
-  # env.seed(random_seed)
+  test_env = gym.make(env_id, render_mode='rgb_array')
   env = TrainMonitor(env, name=name, 
     tensorboard_dir=os.path.join(tensorboard_dir, name),
     log_all_metrics=log_all_metrics)
+  # test_env = TrainMonitor(test_env, name=f'{name}_test',
+  #   tensorboard_dir=os.path.join(tensorboard_dir, f'{name}_test'),
+  #   log_all_metrics=log_all_metrics)
 
   sample_input = jnp.expand_dims(jnp.zeros(env.observation_space.shape), axis=0)
   key = jax.random.PRNGKey(random_seed)
-  key, subkey = jax.random.split(key)
+  key, test_key, subkey = jax.random.split(key, num=3)
   model.init(subkey, sample_input) 
 
   training_step = 0
+  best_test_G = -float('inf')
 
   for ep in range(max_episodes):
-    # random_seed += 1
+    
     obs, info = env.reset(seed=random_seed)    
     trajectory = Trajectory()
     temperature = temperature_fn(max_training_steps=max_training_steps, training_steps=training_step)
@@ -95,7 +102,21 @@ def fit(model, env_id,
         if training_step % save_every_n_steps == 0:
           model.save(save_path)
         if training_step >= max_training_steps:
+          test_G = test(model, test_env, test_key, num_simulations=num_simulations, num_test_episodes=num_test_episodes)
+          env.record_metrics({'test_G': test_G})
+          if test_G >= best_test_G:
+            best_test_G = test_G
+            model.save(f'{save_path}_best')
           return model
     env.record_metrics({'training_step': training_step})
+
+    # Periodically test the model
+    if ep % test_interval == 0:
+      test_G = test(model, test_env, test_key, num_simulations=num_simulations, num_test_episodes=num_test_episodes)
+      # test_env.record_metrics({'test_G': test_G})
+      env.record_metrics({'test_G': test_G})
+      if test_G >= best_test_G:
+        best_test_G = test_G
+        model.save(f'{save_path}_best')
 
   return model
