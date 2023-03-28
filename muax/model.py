@@ -8,7 +8,8 @@ import haiku as hk
 
 import warnings
 
-from .utils import scale_gradient, scalar_to_support, support_to_scalar, min_max
+from .utils import scale_gradient, scalar_to_support, support_to_scalar
+from .loss import default_loss_fn
 
 
 def optimizer(init_value=0,
@@ -74,6 +75,7 @@ class MuZero:
                dynamic_fn,
                policy='muzero',
                optimizer = optimizer(),
+               loss_fn = default_loss_fn,
                discount: float = 0.99,
                support_size: int = 10
                ):
@@ -85,6 +87,8 @@ class MuZero:
     self._policy = self._init_policy(policy)
     self._policy_type = policy
     self._optimizer = optimizer 
+    self.loss_fn = partial(loss_fn, self) if loss_fn else self._loss_fn
+    # partial(default_loss_fn, muzero_instance=self)
     self._discount = discount
     self._support_size = support_size
   
@@ -175,8 +179,8 @@ class MuZero:
     elif with_pi and not with_value: return action, plan_output.action_weights
     else: return action
 
-  def update(self, batch):
-    loss, grads = jax.value_and_grad(self._loss_fn)(self._params, batch)
+  def update(self, batch, *args, **kwargs):
+    loss, grads = jax.value_and_grad(self.loss_fn)(self._params, batch, *args, **kwargs)
     self._params, self._opt_state = self._update(self._params, self._opt_state, grads)
     loss_metric = {'loss': loss.item()}
     
