@@ -158,6 +158,7 @@ def fit(model, env_id,
         model_folder_name = f'epoch_{ep:04d}_test_G_{test_G:.8f}'
         if not os.path.exists(os.path.join(model_dir, model_folder_name)):
           os.makedirs(os.path.join(model_dir, model_folder_name))
-        model.save(os.path.join(model_dir, model_folder_name, save_name))
+        model_path = os.path.join(model_dir, model_folder_name, save_name)
+        model.save(model_path)
 
   return model_path
