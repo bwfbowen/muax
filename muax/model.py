@@ -193,6 +193,8 @@ class MuZero:
   
   def load(self, file):
     """Loads model parameters and optimizer state from the saved file"""
+    if not file.endswith('.npy'):
+      file = f'{file}.npy'
     saved = jnp.load(file, allow_pickle=True).item()
     self._params, self._opt_state = saved['params'], saved['optimizer_state']
 
