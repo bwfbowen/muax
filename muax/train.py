@@ -1,4 +1,5 @@
 import os
+import time 
 import jax 
 from jax import numpy as jnp
 # import coax
@@ -34,7 +35,8 @@ def fit(model, env_id,
           sample_per_trajectory: int = 10,
           name: str = None,
           tensorboard_dir=None, 
-          save_path=None,
+          model_save_path=None,
+          save_name=None,
           random_seed: int = 42,
           temperature_fn=_temperature_fn,
           log_all_metrics=False,
@@ -43,8 +45,14 @@ def fit(model, env_id,
     name = env_id 
   if tensorboard_dir is None:
     tensorboard_dir = '.'
-  if save_path is None:
-    save_path = 'model_params'
+  if save_name is None:
+    save_name = 'model_params'
+  if model_save_path is None:
+    timestr = time.strftime("%Y-%m-%d_%H-%M-%S")
+    model_dir = os.path.join('models', timestr) 
+  else:
+    model_dir = model_save_path 
+  
   env = gym.make(env_id, render_mode='rgb_array')
   test_env = gym.make(env_id, render_mode='rgb_array')
   
@@ -59,6 +67,7 @@ def fit(model, env_id,
 
   training_step = 0
   best_test_G = -float('inf')
+  model_path = None
 
   # buffer warm up
   print('buffer warm up stage...')
@@ -128,14 +137,15 @@ def fit(model, env_id,
       env.record_metrics(loss_metric)
       
       if training_step % save_every_n_steps == 0:
-        model.save(save_path)
+        model_folder_name = f'epoch_{ep:04d}_loss_{loss_metric["loss"]:.8f}'
+        if not os.path.exists(os.path.join(model_dir, model_folder_name)):
+          os.makedirs(os.path.join(model_dir, model_folder_name))
+        cur_path = os.path.join(model_dir, model_folder_name, save_name) 
+        model.save(cur_path)
+        if not model_path:
+          model_path = cur_path
       if training_step >= max_training_steps:
-        test_G = test(model, test_env, test_key, num_simulations=num_simulations, num_test_episodes=num_test_episodes)
-        env.record_metrics({'test_G': test_G})
-        if test_G >= best_test_G:
-          best_test_G = test_G
-          model.save(f'{save_path}_best')
-        return model
+        return model_path
     env.record_metrics({'training_step': training_step})
 
     # Periodically test the model
@@ -145,6 +155,9 @@ def fit(model, env_id,
       env.record_metrics({'test_G': test_G})
       if test_G >= best_test_G:
         best_test_G = test_G
-        model.save(f'{save_path}_best')
+        model_folder_name = f'epoch_{ep:04d}_test_G_{test_G:.8f}'
+        if not os.path.exists(os.path.join(model_dir, model_folder_name)):
+          os.makedirs(os.path.join(model_dir, model_folder_name))
+        model.save(os.path.join(model_dir, model_folder_name, save_name))
 
-  return model
+  return model_path
