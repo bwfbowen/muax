@@ -27,7 +27,7 @@ def fit(model, env_id,
           test_interval: int = 10,
           num_test_episodes: int = 10,
           max_training_steps: int = 10000,
-          save_every_n_steps: int = 1000,
+          save_every_n_epochs: int = 1,
           num_simulations: int = 50,
           k_steps: int = 10,
           buffer_warm_up: int = 128,
@@ -128,24 +128,27 @@ def fit(model, env_id,
     if len(trajectory) >= k_steps:
       buffer.add(trajectory, trajectory.batched_transitions.w.mean())
 
+    train_loss = 0
     for _ in range(t):
       transition_batch = buffer.sample(num_trajectory=num_trajectory,
                                         sample_per_trajectory=sample_per_trajectory,
                                         k_steps=k_steps)
       loss_metric = model.update(transition_batch)
+      train_loss += loss_metric['loss']
       training_step += 1
-      env.record_metrics(loss_metric)
       
-      if training_step % save_every_n_steps == 0:
-        model_folder_name = f'epoch_{ep:04d}_loss_{loss_metric["loss"]:.8f}'
-        if not os.path.exists(os.path.join(model_dir, model_folder_name)):
-          os.makedirs(os.path.join(model_dir, model_folder_name))
-        cur_path = os.path.join(model_dir, model_folder_name, save_name) 
-        model.save(cur_path)
-        if not model_path:
-          model_path = cur_path
-      if training_step >= max_training_steps:
-        return model_path
+    train_loss /= t 
+    env.record_metrics({'loss': train_loss})
+    if ep % save_every_n_epochs == 0:
+      model_folder_name = f'epoch_{ep:04d}_loss_{train_loss:.8f}'
+      if not os.path.exists(os.path.join(model_dir, model_folder_name)):
+        os.makedirs(os.path.join(model_dir, model_folder_name))
+      cur_path = os.path.join(model_dir, model_folder_name, save_name) 
+      model.save(cur_path)
+      if not model_path:
+        model_path = cur_path
+    if training_step >= max_training_steps:
+      return model_path
     env.record_metrics({'training_step': training_step})
 
     # Periodically test the model
