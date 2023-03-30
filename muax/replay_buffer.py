@@ -58,7 +58,7 @@ class Trajectory:
 
     
     def finalize(self):
-      """"""
+      """vstack individual transitions into one instance of Transition."""
       batched_transitions = jax.tree_util.tree_transpose(
           outer_treedef=jax.tree_util.tree_structure([0 for i in self.trajectory]),
           inner_treedef=jax.tree_util.tree_structure(Transition()),
@@ -76,6 +76,7 @@ class Trajectory:
       ----------
       num_samples: int, positive int. Number of samples to draw from the trajectory. 
           Each sample is chosen given the weight(transition.w) as probability.
+      
       k_steps: int, positive int. Determines the length of consecutive steps in each sample.
           If k_steps >= len(trajectory), no samples would be collected.
       
@@ -152,10 +153,12 @@ class BaseReplayBuffer(ABC):
 class TrajectoryReplayBuffer(BaseReplayBuffer):
     r"""
     A simple ring buffer for experience replay.
+    
     Parameters
     ----------
     capacity : positive int
         The capacity of the experience replay buffer.
+    
     random_seed : int, optional
         To get reproducible results.
     """
@@ -172,10 +175,12 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
     def add(self, trajectory, w=1.):
         r"""
         Add a trajectory to the experience replay buffer.
+        
         Parameters
         ----------
         trajectory : Trajectory
             A :class: `Trajectory` object.
+        
         w: float
             sample probability weight of input trajectory
         """
@@ -189,18 +194,23 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
                sample_per_trajectory: int = 1):
         r"""
         Get a batch of transitions to be used for bootstrapped updates.
+        
         Parameters
         ----------
         batch_size : positive int, optional
             The desired batch size of the sample. One sample from a single trajectory.
+        
         num_trajectory: positive int, optional
             Number of trajectory to be sampled. Either num_trajectory or batch_size 
             need to be given.
+        
         k_steps: positive int
             Consecutive k steps from each trajectory. k steps unrolled for training. 
+        
         sample_per_trajectory: positive int, optional
             Number of Transition to be sampled. Used when num_trajectory is provided.
             The batch size will be num_trajectory * sample_per_trajectory.
+        
         Returns
         -------
         transitions : Batch of consecutive transitions.

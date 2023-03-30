@@ -104,7 +104,7 @@ class BaseTracer(ABC):
         Pop a single transition from the cache.
         Returns
         -------
-        transition : 
+        transition : An instance of Transition
             
         """
         pass
@@ -132,6 +132,9 @@ class NStep(BaseTracer):
         self.reset()
 
     def reset(self):
+        r"""
+        Reset the cache to the initial state.
+        """
         self._deque_s = sliceable_deque([])
         self._deque_r = sliceable_deque([])
         self._done = False
@@ -154,6 +157,13 @@ class NStep(BaseTracer):
         return bool(len(self)) and (self._done or len(self) > self.n)
 
     def pop(self):
+        r"""
+        Pops a single transition from the cache. Computes n-step bootstrapping value.
+        Returns
+        -------
+        transition : An instance of Transition
+            
+        """
         # if not self:
         #     raise InsufficientCacheError(
         #         "cache needs to receive more transitions before it can be popped from")
@@ -185,6 +195,9 @@ class NStep(BaseTracer):
 class PNStep(NStep):
     r"""
     A short-term cache for :math:`n`-step bootstrapping with priority.
+    The weight `w` is calcualted as: `w=abs(v - Rn) ** alpha`, 
+    where `v` is the value predicted from the model, 
+    `Rn` is the n-step bootstrapping value calculated from the rewards.
 
     Parameters
     ----------

@@ -49,6 +49,7 @@ jax.tree_util.register_pytree_node(
 
 
 def scale_gradient(g, scale: float = 1):
+    r"""Scales the gradient while remaining the identical value during the forward pass."""
     return g * scale + jax.lax.stop_gradient(g) * (1. - scale)
 
 
@@ -72,7 +73,7 @@ def _inv_scaling(x, eps: float = 1e-3):
 
 
 def scalar_to_support(x, support_size):
-    """"""
+    """Scalar to support"""
     x = _scaling(x)
     x = jnp.clip(x, -support_size, support_size)
     low = jnp.floor(x).astype(jnp.int32) 
@@ -87,7 +88,7 @@ def scalar_to_support(x, support_size):
 
 
 def support_to_scalar(probs, support_size):
-    """"""
+    """Support to scalar"""
 
     x = jnp.sum(
       (jnp.arange(2*support_size+1) - support_size)

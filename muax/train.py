@@ -12,6 +12,7 @@ from .test import test
 
 
 def _temperature_fn(max_training_steps, training_steps):
+  r"""Determines the randomness for the action taken by the model"""
   if training_steps < 0.5 * max_training_steps:
       return 1.0
   elif training_steps < 0.75 * max_training_steps:
@@ -41,6 +42,60 @@ def fit(model, env_id,
           temperature_fn=_temperature_fn,
           log_all_metrics=False,
           ):
+  r"""  Fits the model on the given `env_id` environment.
+        
+        Parameters
+        ----------
+        model: An instance of `MuZero`
+        
+        env_id: str, the environment id for `gym.make(env_id, render_mode='rgb_array')`
+        
+        tracer: An instance of episode tracer that inherents `BaseTracer`. 
+        
+        buffer: An instance of replay buffer that inherents `BaseReplayBuffer`
+
+        max_episodes: int, positive integer. Maximum training episodes
+
+        test_interval: int, positive integer. Tests the model every `test_interval` episodes.
+
+        num_test_episodes: int, positive integer. The number of episodes to test the model.
+
+        max_training_steps: int, positive integer. Maximum training steps.
+
+        save_every_n_epochs: int, positive integer. Save the model every `save_every_n_epochs` episodes.
+
+        num_simulations: int, positive int. The number of simulations.
+
+        k_steps: int, positive int. The number of unrolled steps.
+
+        buffer_warm_up: int, positive int. Collected trajectories until at least `buffer_warm_up` 
+        trajectories are stored in the buffer.
+
+        num_trajectory: int, positive int. Number of trajectories to sample from the buffer.
+
+        sample_per_trajectory: int, positive int. The number of training samples from each of the trajectories.
+
+        name: str. The name of the `TrainMonitor`, and the tensorboard is stored at 
+        `tensorboard_dir=os.path.join(tensorboard_dir, name)`
+
+        tensorboard_dir: str. The directory to store the tensorboard.
+
+        model_save_path: str. The path to save the model parameters during training.
+
+        save_name: str. The name of the file to store the model parameters.
+
+        random_seed: int. random seed
+
+        temperature_fn: Callable. Determines the randomness for the action taken by the model
+
+        log_all_metrics: bool. If True, all metrics will be displayed by the `TrainMonitor`; 
+        else only `T`, `avg_r`, `G`, `avg_G`, `t`, `dt` will be displayed.
+        
+        Returns
+        -------
+        model_path: str. A path to the model parameter that has the best performance during testing.
+
+  """
   if name is None:
     name = env_id 
   if tensorboard_dir is None:
@@ -73,6 +128,7 @@ def fit(model, env_id,
   print('buffer warm up stage...')
   while len(buffer) < buffer_warm_up:
     obs, info = env.reset()    
+    tracer.reset()
     trajectory = Trajectory()
     temperature = temperature_fn(max_training_steps=max_training_steps, training_steps=training_step)
     for t in range(env.spec.max_episode_steps):
@@ -102,7 +158,8 @@ def fit(model, env_id,
     tensorboard_dir=os.path.join(tensorboard_dir, name),
     log_all_metrics=log_all_metrics)
   for ep in range(max_episodes):
-    obs, info = env.reset(seed=random_seed)    
+    obs, info = env.reset(seed=random_seed)   
+    tracer.reset() 
     trajectory = Trajectory()
     temperature = temperature_fn(max_training_steps=max_training_steps, training_steps=training_step)
     for t in range(env.spec.max_episode_steps):

@@ -8,6 +8,30 @@ from .utils import scalar_to_support, scale_gradient
 
 @partial(jax.jit, static_argnums=(0, ))
 def default_loss_fn(muzero_instance, params, batch):
+    r"""
+    Computes loss for MuZero model. 
+    Uses `scalar_to_support` for reward `r` and n-step bootstrapping value `Rn`. A technique mentioned in the paper's Appendix.
+    The loss is the sum of `cross_entropy(u, r)`, `cross_entropy(Rn, v)` and `cross_entropy(logits, pi)`, and is regularised by L2.
+
+    Parameters
+    ----------
+    muzero_instance : An instance of `MuZero` class
+
+    params : `muzero_instance.params`
+
+        The parameters of each of the three neural networks(representation, prediction and dynamic)
+
+    batch: An instance of `Transition`.
+
+        A batch from `replay_buffer.sample`. For each `field` in batch, it is of the shape `[B, L, E]`, 
+        where `B` is the batch size, `L` is the length of the sample trajectory, `E` is the dimension of this `field`.
+        For instance, the shape of `batch.r` could be `[32, 10, 1]`, which represents there are 32 trajectories sampled, each has a length of 10,
+        and the reward corresponding to each step is a scalar.
+    
+    Returns
+    -------
+    loss: jnp.array. The loss calculated.
+    """
     # Use muzero_instance to access required methods and attributes
     loss = 0
     c = 1e-4

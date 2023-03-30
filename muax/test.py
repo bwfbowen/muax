@@ -3,6 +3,26 @@ import jax
 
 
 def test(model, env, key, num_simulations, num_test_episodes=10, random_seed=None):
+    r"""Tests the model on the environment and calculates the average total reward.
+    
+    Parameters
+    ----------
+    model: An instance of `MuZero`
+
+    env: A gym-like environment. The env should have `reset()`, `step()` methods and `spec.max_episode_steps` attribute.
+
+    key: array. `jax.random.PRNGKey(random_seed)`
+
+    num_simulations: int, positive integer. The number of simulations.
+
+    num_test_episodes: int, positive integer. The number of episodes to test the model.
+
+    random_seed: int. Set for environment
+
+    Returns
+    -------
+    average_test_reward: float. The average total reward for `num_test_episodes` tests.
+    """
     total_rewards = np.zeros(num_test_episodes)
     for episode in range(num_test_episodes):
         obs, info = env.reset(seed=random_seed)

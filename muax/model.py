@@ -20,6 +20,32 @@ def optimizer(init_value=0,
               decay_rate=0.8,
               clip_by_global_norm=1.0
               ):
+  r"""
+    Initializes an optax optimizer that uses adam to update weights, 
+    `optax.warmup_exponential_decay_schedule` to schedule the learning rate, and clip the gradient by the global norm(`optax.clip_by_global_norm`)
+    This optimizer seems to be more stable.
+
+    Parameters
+    ----------
+    init_value : float, initial value for the scalar to be annealed.
+
+    peak_value : float, peak value for scalar to be annealed at end of warmup.
+
+    end_value : float, the value at which the exponential decay stops. When
+    `decay_rate` < 1, `end_value` is treated as a lower bound, otherwise as an upper bound. Has no effect when `decay_rate` = 0.
+
+    warmup_steps: int, positive integer, the length of the linear warmup.
+
+    transition_steps: int, positive integer, for `exponential decay`
+
+    decay_rate: float, must not be zero. The decay rate.
+
+    clip_by_global_norm: float, the maximum global norm for an update. Clips updates using their global norm.
+    
+    Returns
+    -------
+    gradient_transform: GradientTransformation. A single (init_fn, update_fn) tuple.
+    """
   scheduler = optax.warmup_exponential_decay_schedule(
     init_value=init_value, 
     peak_value=peak_value,
@@ -49,25 +75,30 @@ def min_max_normalize(s):
 
 class MuZero:
   r"""Muzero algorithm
-  
-    TODO: more args, more flexible for repr, pred, dy modules
     
     Parameters
     ----------
-    embedding_dim: Any. 
-        The embedding dimension of hidden state `s`. Depends on the representation module. 
-    num_actions: Any. 
-        The maximum number of actions the policy can take. Depends on the prediction module and dynamic module.
     representation_fn: A function initialized from a class which inherents hk.Module, 
         which takes raw observation `obs` from the environment as input and outputs the hidden state `s`.
-        `s` will be the input of prediction_module and dynamic_module.
+        `s` will be the input of prediction_fn and dynamic_fn. 
+        The first dimension of the `obs` is the batch dimension.
+    
     prediction_fn: A function initialized from a class which inherents hk.Module, 
         which takes hidden state `s` as input and outputs prior logits `logits` and value `v` of the state.
+    
     dynamic_fn: A function initialized from a class which inherents hk.Module,
         which takes hidden state `s` and action `a` as input and outputs reward `r` and next hidden state `ns`.
-    policy: str, value in `['muzero', 'gumbel']`. Determines which muzero policy in mctx to use. 
-    optimizer: Optimizer to update the parameters of `representation_module`, `prediction_module` and `dynamic_module`.
+    
+    policy: str, value in `['muzero', 'gumbel']`. Determines which muzero policy in `mctx` to use. 
+    
+    optimizer: Optimizer to update the parameters of `representation_fn`, `prediction_fn` and `dynamic_fn`.
+    
+    loss_fn: Callable, computes loss for the MuZero model. The default is `default_loss_fn`.
+    
     discount: Any. Used for mctx.RecurrentFnOutput.
+
+    support_size: int, the `support_size` for `scalar_to_support`, 
+        the scale is nearly square root, that is, if the scalar is ~100, `support_size`=10 might be sufficient.
   """
   def __init__(self, 
                representation_fn,
@@ -115,14 +146,51 @@ class MuZero:
     return self._params 
 
   def representation(self, obs):
+    r"""
+    Passes the observation `obs` through MuZero's `representation_fn`.
+
+    Parameters
+    ----------
+    obs: array, the first dimension is the batch dimension.
+    
+    Returns
+    ----------
+    s: jnp.array, the hidden state
+    """
     s = self._repr_apply(self.params['representation'], obs)
     return s 
   
   def prediction(self, s):
+    r"""
+    Passes the hidden state `s` through MuZero's `prediction_fn`.
+
+    Parameters
+    ----------
+    s: array, the first dimension is the batch dimension.
+    
+    Returns
+    ----------
+    v: jnp.array, the value predicted 
+    logits: jnp.array, the action logits predicted
+    """
     v, logits = self._pred_apply(self.params['prediction'], s)
     return v, logits
 
   def dynamic(self, s, a):
+    r"""
+    Passes the hidden state `s` and action `a` through MuZero's `dynamic_fn`.
+
+    Parameters
+    ----------
+    s: array, the first dimension is the batch dimension.
+
+    a: array, the first dimension is the batch dimension.
+    
+    Returns
+    ----------
+    r: jnp.array, the reward estimated
+    ns: jnp.array, the next state estimated
+    """
     r, ns = self._dy_apply(self.params['dynamic'], s, a)
     return r, ns
 
@@ -142,20 +210,67 @@ class MuZero:
           pb_c_base: float = 19652, 
           max_num_considered_actions: int = 16, 
           gumbel_scale: float = 1):
-    """Acts given environment's observations.
+    r"""Acts given environment's observations.
     
     Parameters
     ----------
     rng_key: jax.random.PRNGKey.
+
     obs: Array. The raw observations from environemnt.
-    with_pi: bool.
-    with_value: bool.
-    obs_from_batch: bool.
-    num_simulations: int, positive int. Argument for mctx.muzero_policy
+
+    with_pi: bool. If True, the action logits `action weight` will be returned.
+    
+    with_value: bool. If True, the value of the root node (corresponding to the observation) will be returned.
+
+    obs_from_batch: bool. If True, the first dimension should be the batch dimension. 
+    If False, `jnp.expand_dims(obs, axis=0)` will be applied.
+    
+    num_simulations: int, positive int. Argument for mctx.muzero_policy and mctx.gumbel_muzero_policy. 
+    The number of simulations.
+
+    temperature: float,  Argument for mctx.muzero_policy. temperature for acting proportionally to
+    `visit_counts**(1 / temperature)`.
+
+    invalid_actions: Array. A mask with invalid actions. Argument for mctx.muzero_policy and mctx.gumbel_muzero_policy. 
+    Invalid actions have ones, valid actions have zeros in the mask. Shape `[B, num_actions]`.
+
+    max_depth: int, positive integer. Argument for mctx.muzero_policy and mctx.gumbel_muzero_policy. 
+    Maximum search tree depth allowed during simulation.
+
+    loop_fn: Callable. Argument for mctx.muzero_policy and mctx.gumbel_muzero_policy. 
+    Function used to run the simulations. It may be required to pass
+    `hk.fori_loop` if using this function inside a Haiku module.
+
+    qtransform: Callable. Argument for mctx.muzero_policy and mctx.gumbel_muzero_policy.
+    Function to obtain completed Q-values for a node. By default, the qtransform for mctx.muzero_policy is `qtransform_by_parent_and_siblings`, 
+    and `qtransform_completed_by_mix_value` for mctx.gumbel_muzero_policy.
+
+    dirichlet_fraction: float, from 0 to 1. Argument for mctx.muzero_policy. Interpolating between using only the
+    prior policy or just the Dirichlet noise.
+
+    dirichlet_alpha: float. Argument for mctx.muzero_policy. Concentration parameter to parametrize the Dirichlet
+    distribution.
+
+    pb_c_init: float. Argument for mctx.muzero_policy. constant c_1 in the PUCT formula.
+
+    pb_c_base: float. Argument for mctx.muzero_policy. constant c_2 in the PUCT formula.
+
+    max_num_considered_actions: int, positive integer. Argument for mctx.gumbel_muzero_policy.
+    the maximum number of actions expanded at the root node. 
+    A smaller number of actions will be expanded if the number of valid actions is smaller.
+
+    gumbel_scale: float. Argument for mctx.gumbel_muzero_policy. scale for the Gumbel noise. 
+    Evalution on perfect-information games can use gumbel_scale=0.0.
     
     
     Returns
     ----------
+    action: int or array. If `obs_from_batch` is True, returns array. Else returns int
+    
+    action_weights: Array. If `with_pi` is True, the `action_weights` will be returned.
+
+    root_value: floar or array. If `with_value` is True, the `root_value` will be returned.
+    If `obs_from_batch` is True, returns array. Else returns int
     
     """
     if not obs_from_batch:
@@ -180,6 +295,21 @@ class MuZero:
     else: return action
 
   def update(self, batch, *args, **kwargs):
+    r"""Updates model parameters given a batch of trajectories.
+    
+    Parameters
+    ----------
+    batch: An instance of `Transition`.
+
+        A batch from `replay_buffer.sample`. For each `field` in batch, it is of the shape `[B, L, E]`, 
+        where `B` is the batch size, `L` is the length of the sample trajectory, `E` is the dimension of this `field`.
+        For instance, the shape of `batch.r` could be `[32, 10, 1]`, which represents there are 32 trajectories sampled, each has a length of 10,
+        and the reward corresponding to each step is a scalar.
+
+    Returns
+    -------
+    loss_metric: dict. The key is 'loss', the value is float.
+    """
     loss, grads = jax.value_and_grad(self.loss_fn)(self._params, batch, *args, **kwargs)
     self._params, self._opt_state = self._update(self._params, self._opt_state, grads)
     loss_metric = {'loss': loss.item()}
@@ -300,6 +430,8 @@ class MuZero:
 
   @partial(jax.jit, static_argnums=(0,))
   def _root_inference(self, params, rng_key, obs):
+    r"""Given the observation, a (prior_logits, value, embedding) RootFnOutput is estimated. The
+    prior_logits are from a policy network. The shapes are ([B, num_actions], [B], [B, ...]), respectively."""
     s = self._repr_apply(params['representation'], obs)
     v, logits = self._pred_apply(params['prediction'], s)  
     v = support_to_scalar(jax.nn.softmax(v), self._support_size).flatten()
@@ -312,6 +444,10 @@ class MuZero:
 
   @partial(jax.jit, static_argnums=(0,))
   def _recurrent_inference(self, params, rng_key, action, embedding):
+    r"""To be called on the leaf nodes and unvisited actions retrieved by the simulation step,
+    which takes as args (params, rng_key, action, embedding) and returns a `RecurrentFnOutput` and the new state embedding.
+    The rng_key argument is consumed.
+    """
     r, next_embedding = self._dy_apply(params['dynamic'], embedding, action)
     v, logits = self._pred_apply(params['prediction'], embedding)
     r = support_to_scalar(jax.nn.softmax(r), self._support_size).flatten()
