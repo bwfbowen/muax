@@ -1,5 +1,5 @@
 # muax 😘
-Muax is a library that provides help for using DeepMind's mctx on gym-style environments. 
+Muax is a library that provides help for using DeepMind's [mctx](https://github.com/deepmind/mctx) on gym-style environments. 
 
 ## Installation
 You can install the released version of muax through PyPI:
@@ -127,9 +127,17 @@ model_path = muax.fit(model, 'CartPole-v1',
 
 6. We can also have more tests with the best parameter 
 ```python
+from muax.test import test
+
+model = muax.MuZero(repr_fn, pred_fn, dy_fn, policy='muzero', discount=discount,
+                    optimizer=gradient_transform, support_size=support_size)
+
+model.load(model_path)
+
+env_id = 'CartPole-v1'
+test_env = gym.make(env_id, render_mode='rgb_array')
+test_key = jax.random.PRNGKey(0)
+test(model, test_env, test_key, num_simulations=50, num_test_episodes=100, random_seed=None)
 ```
 
-Alternatively, the users could easily write their own training loop. Here is an example snippet
-```python
-
-```
+Alternatively, the users could easily write their own training loop.One example is from [cartpole.ipynb](https://github.com/bwfbowen/muax/blob/main/examples/cartpole.ipynb)
