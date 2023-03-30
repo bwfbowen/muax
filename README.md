@@ -143,4 +143,6 @@ test_key = jax.random.PRNGKey(0)
 test(model, test_env, test_key, num_simulations=50, num_test_episodes=100, random_seed=None)
 ```
 
-Alternatively, the users could easily write their own training loop.One example is from [cartpole.ipynb](https://github.com/bwfbowen/muax/blob/main/examples/cartpole.ipynb)
+Alternatively, the users could easily write their own training loop. One example is from [cartpole.ipynb](https://github.com/bwfbowen/muax/blob/main/examples/cartpole.ipynb)
+
+More examples can be found under the [example](https://github.com/bwfbowen/muax/tree/main/examples) directory.
