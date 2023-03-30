@@ -123,7 +123,10 @@ model_path = muax.fit(model, 'CartPole-v1',
 
 5. After the training is done, one can use tensorboard to check the training procedure
 ```python
+%load_ext tensorboard 
+%tensorboard --logdir=tensorboard/cartpole
 ```
+![tensorboard example]()
 
 6. We can also have more tests with the best parameter 
 ```python
