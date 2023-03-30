@@ -1,1 +1,1 @@
-Examples on using muax
+Examples for using muax

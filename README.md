@@ -9,7 +9,7 @@ pip install muax
 ```
 
 ## Getting started
-Muax provides some functions around mctx's high-level policy `muzero_policy`. The usage of muax could be similar to using policies like DQN, PPO and etc. For instance, in a typical loop for interacting with the environment, the code is like(code snippet from [muax/test](https://github.com/bwfbowen/muax/blob/main/muax/test.py)):
+Muax provides some functions around [mctx](https://github.com/deepmind/mctx)'s high-level policy `muzero_policy`. The usage of muax could be similar to using policies like DQN, PPO and etc. For instance, in a typical loop for interacting with the environment, the code is like(code snippet from [muax/test](https://github.com/bwfbowen/muax/blob/main/muax/test.py)):
 
 ```python
 random_seed = 0
