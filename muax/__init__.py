@@ -13,6 +13,7 @@ from . import train
 from . import test
 from . import wrappers
 from . import utils
+from . import loss
 
 __all__ = (
   'NStep',
@@ -28,5 +29,6 @@ __all__ = (
   'train',
   'test',
   'wrappers',
-  'utils'
+  'utils',
+  'loss'
 )
