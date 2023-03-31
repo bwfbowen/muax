@@ -4,6 +4,7 @@ import jax
 from jax import numpy as jnp
 # import coax
 import gymnasium as gym 
+from typing import Optional
 
 from .wrappers import TrainMonitor
 from .episode_tracer import PNStep
@@ -21,27 +22,30 @@ def _temperature_fn(max_training_steps, training_steps):
       return 0.25
 
 
-def fit(model, env_id, 
-          tracer=PNStep(50, 0.997, 0.5), 
-          buffer=TrajectoryReplayBuffer(500),
-          max_episodes: int = 1000, 
-          test_interval: int = 10,
-          num_test_episodes: int = 10,
-          max_training_steps: int = 10000,
-          save_every_n_epochs: int = 1,
-          num_simulations: int = 50,
-          k_steps: int = 10,
-          buffer_warm_up: int = 128,
-          num_trajectory: int = 32,
-          sample_per_trajectory: int = 10,
-          name: str = None,
-          tensorboard_dir=None, 
-          model_save_path=None,
-          save_name=None,
-          random_seed: int = 42,
-          temperature_fn=_temperature_fn,
-          log_all_metrics=False,
-          ):
+def fit(model, 
+        env_id: Optional[str] = None,
+        env: Optional[gym.Env] = None,
+        test_env: Optional[gym.Env] = None, 
+        tracer=PNStep(50, 0.997, 0.5), 
+        buffer=TrajectoryReplayBuffer(500),
+        max_episodes: int = 1000, 
+        test_interval: int = 10,
+        num_test_episodes: int = 10,
+        max_training_steps: int = 10000,
+        save_every_n_epochs: int = 1,
+        num_simulations: int = 50,
+        k_steps: int = 10,
+        buffer_warm_up: int = 128,
+        num_trajectory: int = 32,
+        sample_per_trajectory: int = 10,
+        name: str = None,
+        tensorboard_dir=None, 
+        model_save_path=None,
+        save_name=None,
+        random_seed: int = 42,
+        temperature_fn=_temperature_fn,
+        log_all_metrics=False,
+        ):
   r"""  Fits the model on the given `env_id` environment.
         
         Parameters
@@ -49,6 +53,11 @@ def fit(model, env_id,
         model: An instance of `MuZero`
         
         env_id: str, the environment id for `gym.make(env_id, render_mode='rgb_array')`
+
+        env: gym.Env. The gym-style environment. Either `env_id` or `env` needs to be provided. 
+        If `env` is provided, `test_env` must be provided as well.
+
+        test_env: gym.Env. The gym-style environment for testing. If not provided, `gym.make(env_id, render_mode='rgb_array')` will be used.
         
         tracer: An instance of episode tracer that inherents `BaseTracer`. 
         
@@ -96,6 +105,21 @@ def fit(model, env_id,
         model_path: str. A path to the model parameter that has the best performance during testing.
 
   """
+  if env_id is None and env is None:
+    raise ValueError("You must provide either `env_id` or `env`.")
+    
+  if env_id is not None and env is not None:
+    raise ValueError("You can only provide either `env_id` or `env`, not both.")
+  
+  if env is None:
+    env = gym.make(env_id, render_mode='rgb_array')
+  
+  if test_env is None:
+    if env_id is not None:
+      test_env = gym.make(env_id, render_mode='rgb_array')
+    else:
+      raise ValueError("You must provide `test_env` when using a custom `env`.")
+
   if name is None:
     name = env_id 
   if tensorboard_dir is None:
@@ -107,13 +131,6 @@ def fit(model, env_id,
     model_dir = os.path.join('models', timestr) 
   else:
     model_dir = model_save_path 
-  
-  env = gym.make(env_id, render_mode='rgb_array')
-  test_env = gym.make(env_id, render_mode='rgb_array')
-  
-  # test_env = TrainMonitor(test_env, name=f'{name}_test',
-  #   tensorboard_dir=os.path.join(tensorboard_dir, f'{name}_test'),
-  #   log_all_metrics=log_all_metrics)
 
   sample_input = jnp.expand_dims(jnp.zeros(env.observation_space.shape), axis=0)
   key = jax.random.PRNGKey(random_seed)
@@ -154,9 +171,10 @@ def fit(model, env_id,
       buffer.add(trajectory, trajectory.batched_transitions.w.mean())
   
   print('start training...')
-  env = TrainMonitor(env, name=name, 
-    tensorboard_dir=os.path.join(tensorboard_dir, name),
-    log_all_metrics=log_all_metrics)
+  # Apply TrainMonitor wrapper if env_id is provided
+  if env_id is not None:
+    env = TrainMonitor(env, tensorboard_dir=os.path.join(tensorboard_dir, name), log_all_metrics=log_all_metrics)
+  
   for ep in range(max_episodes):
     obs, info = env.reset(seed=random_seed)   
     tracer.reset() 

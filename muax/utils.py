@@ -1,6 +1,8 @@
 """
 MIT License
 
+Copyright (c) 2020 Microsoft Corporation.
+Copyright (c) 2021 github.com/coax-dev
 Copyright (c) 2022 Zeyu Zheng
 Copyright (c) 2023 bf2504@columbia.edu
 
@@ -28,6 +30,7 @@ from itertools import islice
 from functools import partial
 import jax
 from jax import numpy as jnp
+from scipy.linalg import pascal
 
 
 class sliceable_deque(deque):
@@ -96,3 +99,68 @@ def support_to_scalar(probs, support_size):
         axis=-1)
     x = _inv_scaling(x)
     return x 
+
+
+def diff_transform_matrix(num_frames, dtype='float32'):
+    r"""
+    A helper function that implements discrete differentiation for stacked
+    state observations.
+    Let's say we have a feature vector :math:`X` consisting of four stacked
+    frames, i.e. the shape would be: ``[batch_size, height, width, 4]``.
+    The corresponding diff-transform matrix with ``num_frames=4`` is a
+    :math:`4\times 4` matrix given by:
+    .. math::
+        M_\text{diff}^{(4)}\ =\ \begin{pmatrix}
+            -1 &  0 &  0 & 0 \\
+             3 &  1 &  0 & 0 \\
+            -3 & -2 & -1 & 0 \\
+             1 &  1 &  1 & 1
+        \end{pmatrix}
+    such that the diff-transformed feature vector is readily computed as:
+    .. math::
+        X_\text{diff}\ =\ X\, M_\text{diff}^{(4)}
+    The diff-transformation preserves the shape, but it reorganizes the frames
+    in such a way that they look more like canonical variables. You can think
+    of :math:`X_\text{diff}` as the stacked variables :math:`x`,
+    :math:`\dot{x}`, :math:`\ddot{x}`, etc. (in reverse order). These
+    represent the position, velocity, acceleration, etc. of pixels in a single
+    frame.
+    Parameters
+    ----------
+    num_frames : positive int
+        The number of stacked frames in the original :math:`X`.
+    dtype : dtype, optional
+        The output data type.
+    Returns
+    -------
+    M : 2d-Tensor, shape: [num_frames, num_frames]
+        A square matrix that is intended to be multiplied from the left, e.g.
+        ``X_diff = K.dot(X_orig, M)``, where we assume that the frames are
+        stacked in ``axis=-1`` of ``X_orig``, in chronological order.
+    """
+    assert isinstance(num_frames, int) and num_frames >= 1
+    s = jnp.diag(jnp.power(-1, jnp.arange(num_frames)))  # alternating sign
+    m = s.dot(pascal(num_frames, kind='upper'))[::-1, ::-1]
+    return m.astype(dtype)
+
+
+def diff_transform(X, dtype='float32'):
+    r"""
+    A helper function that implements discrete differentiation for stacked state observations. See
+    :func:`diff_transform_matrix` for a detailed description.
+    .. code:: python
+        M = diff_transform_matrix(num_frames=X.shape[-1])
+        X_transformed = np.dot(X, M)
+    Parameters
+    ----------
+    X : ndarray
+        An array whose shape is such that the last axis is the frame-stack axis, i.e.
+        :code:`X.shape[-1] == num_frames`.
+    Returns
+    -------
+    X_transformed : ndarray
+        The shape is the same as the input shape, but the last axis are mixed to represent position,
+        velocity, acceleration, etc.
+    """
+    M = diff_transform_matrix(num_frames=X.shape[-1], dtype=dtype)
+    return jnp.dot(X, M)

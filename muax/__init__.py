@@ -1,6 +1,6 @@
-__version__ = '0.0.2.8'
+__version__ = '0.0.2.8.1'
 
-from .episode_tracer import NStep, PNStep
+from .episode_tracer import NStep, PNStep, Transition
 from .replay_buffer import Trajectory, TrajectoryReplayBuffer
 from .model import MuZero
 from .train import fit 
@@ -11,6 +11,8 @@ from . import nn
 from . import model 
 from . import train
 from . import test
+from . import wrappers
+from . import utils
 
 __all__ = (
   'NStep',
@@ -24,5 +26,7 @@ __all__ = (
   'nn',
   'model',
   'train',
-  'test'
+  'test',
+  'wrappers',
+  'utils'
 )
