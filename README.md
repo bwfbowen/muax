@@ -1,5 +1,5 @@
 # muax 😘
-Muax is a library that provides help for using DeepMind's [mctx](https://github.com/deepmind/mctx) on gym-style environments. 
+Muax provides help for using DeepMind's [mctx](https://github.com/deepmind/mctx) on gym-style environments. 
 
 ## Installation
 You can install the released version of muax through PyPI:
