@@ -139,8 +139,8 @@ class NStep(BaseTracer):
         self._deque_s = sliceable_deque([])
         self._deque_r = sliceable_deque([])
         self._done = False
-        self._gammas = jnp.power(self.gamma, jnp.arange(self.n))
-        self._gamman = jnp.power(self.gamma, self.n)
+        self._gammas = np.power(self.gamma, np.arange(self.n))
+        self._gamman = np.power(self.gamma, self.n)
 
     def add(self, obs, a, r, done, v=0.0, pi=0.0, w=1.0):
         # if self._done and len(self):
@@ -173,8 +173,8 @@ class NStep(BaseTracer):
         obs, a, v, pi, w = self._deque_s.popleft()
 
         # n-step partial return
-        rs = jnp.array(self._deque_r[:self.n])
-        Rn = jnp.sum(self._gammas[:len(rs)] * rs).item()
+        rs = np.array(self._deque_r[:self.n])
+        Rn = np.sum(self._gammas[:len(rs)] * rs).item()
         r = self._deque_r.popleft()
 
         # keep in mind that we've already popped 
@@ -226,8 +226,8 @@ class PNStep(NStep):
         obs, a, v, pi, w = self._deque_s.popleft()
 
         # n-step partial return
-        rs = jnp.array(self._deque_r[:self.n])
-        Rn = jnp.sum(self._gammas[:len(rs)] * rs).item()
+        rs = np.array(self._deque_r[:self.n])
+        Rn = np.sum(self._gammas[:len(rs)] * rs).item()
         r = self._deque_r.popleft()
 
         # keep in mind that we've already popped 
