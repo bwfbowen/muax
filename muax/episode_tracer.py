@@ -30,6 +30,7 @@ import dataclasses
 from dataclasses import dataclass
 from collections import deque 
 from itertools import islice
+import numpy as np 
 import jax
 from jax import numpy as jnp
 
