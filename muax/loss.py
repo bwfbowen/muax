@@ -45,7 +45,7 @@ def default_loss_fn(muzero_instance, params, batch):
       v, logits = muzero_instance._pred_apply(params['prediction'], s)
       # Appendix G, scale the gradient at the start of the dynamics function by 1/2 
       s = scale_gradient(s, 0.5)
-      r, s = muzero_instance._dy_apply(params['dynamic'], s, batch.a[:, i, :].flatten())
+      r, ns = muzero_instance._dy_apply(params['dynamic'], s, batch.a[:, i, :].flatten())
       # losses: reward
       loss_r = jnp.mean(
         optax.softmax_cross_entropy(r, 
@@ -63,9 +63,9 @@ def default_loss_fn(muzero_instance, params, batch):
         ))
 
       loss += loss_r + loss_v + loss_pi 
-      loss_s = (loss, s)
+      loss_s = (loss, ns)
       return loss_s 
-    loss, _ = jax.lax.fori_loop(1, L, body_func, (loss, s))
+    loss, _ = jax.lax.fori_loop(0, L, body_func, (loss, s))
     # Appendix G Training: "irrespective of how many steps we unroll for"
     loss /= L 
 
