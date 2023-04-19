@@ -442,7 +442,7 @@ class FrameStacking(gymnasium.Wrapper):
     Wrapper that does frame stacking (see `DQN paper
     <https://www.cs.toronto.edu/~vmnih/docs/dqn.pdf>`_).
     This implementation is different from the coax's implementation that doesn't perform the
-    stacking itself. Instead, it returns a ndarray of frames, which is stacked along the first axis(axis=0).
+    stacking itself. Instead, it returns a ndarray of frames, which is stacked along the last axis(axis=-1).
     
     Example
     -------
@@ -470,9 +470,9 @@ class FrameStacking(gymnasium.Wrapper):
     def step(self, action):
         observation, reward, done, truncated, info = self.env.step(action)
         self._frames.append(observation)
-        return np.stack(self._frames, axis=0), reward, done, truncated, info
+        return np.stack(self._frames, axis=-1), reward, done, truncated, info
 
     def reset(self, **kwargs):
         observation, info = self.env.reset(**kwargs)
         self._frames.extend(observation for _ in range(self._frames.maxlen))
-        return np.stack(self._frames, axis=0), info  # shallow copy
+        return np.stack(self._frames, axis=-1), info  # shallow copy
