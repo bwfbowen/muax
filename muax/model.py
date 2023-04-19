@@ -1,4 +1,5 @@
 from functools import partial
+import numpy as np
 import jax
 from jax import numpy as jnp 
 import mctx 
@@ -287,7 +288,7 @@ class MuZero:
                                          max_num_considered_actions=max_num_considered_actions,
                                          gumbel_scale=gumbel_scale)
     root_value = root_value.item() if not obs_from_batch else root_value
-    action = plan_output.action.item() if not obs_from_batch else plan_output.action
+    action = plan_output.action.item() if not obs_from_batch else np.asarray(plan_output.action)
 
     if with_pi and with_value: return action, plan_output.action_weights, root_value
     elif not with_pi and with_value: return action, root_value
