@@ -189,8 +189,8 @@ def fit(model,
                            num_simulations=num_simulations,
                            temperature=temperature)
       obs_next, r, done, truncated, info = env.step(a)
-      if truncated:
-        r = 1 / (1 - tracer.gamma)
+#       if truncated:
+#         r = 1 / (1 - tracer.gamma)
       tracer.add(obs, a, r, done or truncated, v=v, pi=pi)
       while tracer:
         trans = tracer.pop()
