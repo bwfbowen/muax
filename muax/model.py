@@ -398,7 +398,7 @@ class MuZero:
       v, logits = self._pred_apply(params['prediction'], s)
       # Appendix G, scale the gradient at the start of the dynamics function by 1/2 
       s = scale_gradient(s, 0.5)
-      r, s = self._dy_apply(params['dynamic'], s, batch.a[:, i, :].flatten())
+      r, ns = self._dy_apply(params['dynamic'], s, batch.a[:, i, :].flatten())
       # losses: reward
       loss_r = jnp.mean(
         optax.softmax_cross_entropy(r, 
@@ -416,9 +416,9 @@ class MuZero:
         ))
 
       loss += loss_r + loss_v + loss_pi 
-      loss_s = (loss, s)
+      loss_s = (loss, ns)
       return loss_s 
-    loss, _ = jax.lax.fori_loop(1, L, body_func, (loss, s))
+    loss, _ = jax.lax.fori_loop(0, L, body_func, (loss, s))
     # Appendix G Training: "irrespective of how many steps we unroll for"
     loss /= L 
 
