@@ -45,6 +45,7 @@ def fit(model,
         random_seed: int = 42,
         temperature_fn=_temperature_fn,
         log_all_metrics=False,
+        num_update_per_episode: int = 50,
         ):
   r"""  Fits the model on the given `env_id` environment.
         
@@ -204,7 +205,7 @@ def fit(model,
       buffer.add(trajectory, trajectory.batched_transitions.w.mean())
 
     train_loss = 0
-    for _ in range(t):
+    for _ in range(num_update_per_episode):
       transition_batch = buffer.sample(num_trajectory=num_trajectory,
                                         sample_per_trajectory=sample_per_trajectory,
                                         k_steps=k_steps)
@@ -212,7 +213,7 @@ def fit(model,
       train_loss += loss_metric['loss']
       training_step += 1
       
-    train_loss /= t 
+    train_loss /= num_update_per_episode
     env.record_metrics({'loss': train_loss})
     if ep % save_every_n_epochs == 0:
       model_folder_name = f'epoch_{ep:04d}_loss_{train_loss:.8f}'
