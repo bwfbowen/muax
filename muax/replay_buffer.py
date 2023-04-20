@@ -64,7 +64,7 @@ class Trajectory:
           inner_treedef=jax.tree_util.tree_structure(Transition()),
           pytree_to_transpose=self.trajectory
           )
-      batched_transitions = Transition(*(np.expand_dims(np.vstack(_attr), axis=0)
+      batched_transitions = Transition(*(np.expand_dims(_attr, axis=0)
           for _attr in batched_transitions))
       self._batched_transitions = batched_transitions
 
@@ -105,7 +105,7 @@ class Trajectory:
 
     def _get_sample(self, idx, k_steps):
       end_idx = idx + k_steps 
-      sample = self.batched_transitions[:, idx: end_idx, :]
+      sample = self.batched_transitions[:, idx: end_idx]
       return sample
 
     def __getitem__(self, index):
