@@ -4,6 +4,16 @@ from jax import numpy as jnp
 import haiku as hk
 
 
+@jax.jit
+def min_max_normalize(s):
+  s_min = s.min(axis=1, keepdims=True)[0]
+  s_max = s.max(axis=1, keepdims=True)[0]
+  s_scale = s_max - s_min 
+  s_scale = jnp.where(s_scale < 1e-5, s_scale + 1e-5, s_scale)
+  s_normed = (s - s_min) / (s_scale)
+  return s_normed
+
+
 class Representation(hk.Module):
   def __init__(self, embedding_dim, name='representation'):
     super().__init__(name=name)
@@ -14,6 +24,7 @@ class Representation(hk.Module):
 
   def __call__(self, obs):
     s = self.repr_func(obs)
+    s = min_max_normalize(s)
     return s 
 
 
@@ -58,6 +69,7 @@ class Dynamic(hk.Module):
     sa = self.cat_func(s, a)
     r = self.r_func(sa)
     ns = self.ns_func(sa)
+    ns = min_max_normalize(ns)
     return r, ns
 
 
