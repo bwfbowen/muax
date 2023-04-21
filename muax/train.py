@@ -1,5 +1,5 @@
 import os
-import time
+import time 
 import numpy as np
 import jax 
 from jax import numpy as jnp
@@ -123,7 +123,7 @@ def fit(model,
       raise ValueError("You must provide `test_env` when using a custom `env`.")
 
   if name is None:
-    name = env_id 
+    name = env_id if env_id is not None else 'tmp'
   if tensorboard_dir is None:
     tensorboard_dir = '.'
   if save_name is None:
@@ -173,9 +173,7 @@ def fit(model,
       buffer.add(trajectory, trajectory.batched_transitions.w.mean())
   
   print('start training...')
-  # Apply TrainMonitor wrapper if env_id is provided
-  if env_id is not None:
-    env = TrainMonitor(env, tensorboard_dir=os.path.join(tensorboard_dir, name), log_all_metrics=log_all_metrics)
+  env = TrainMonitor(env, tensorboard_dir=os.path.join(tensorboard_dir, name), log_all_metrics=log_all_metrics)
   
   for ep in range(max_episodes):
     obs, info = env.reset(seed=random_seed)   
