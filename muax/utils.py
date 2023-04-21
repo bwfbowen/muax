@@ -1,6 +1,7 @@
 """
 MIT License
 
+Copyright 2019 DeepMind Technologies Limited. 
 Copyright (c) 2020 Microsoft Corporation.
 Copyright (c) 2021 github.com/coax-dev
 Copyright (c) 2022 Zeyu Zheng
@@ -164,3 +165,55 @@ def diff_transform(X, dtype='float32'):
     """
     M = diff_transform_matrix(num_frames=X.shape[-1], dtype=dtype)
     return jnp.dot(X, M)
+
+
+def n_step_bootstrapped_returns(
+    r_t,
+    discount_t,
+    v_t,
+    n: int,
+    lambda_t = 1.,
+    stop_target_gradients: bool = False,
+):
+  """Computes strided n-step bootstrapped return targets over a sequence.
+  The returns are computed according to the below equation iterated `n` times:
+     Gₜ = rₜ₊₁ + γₜ₊₁ [(1 - λₜ₊₁) vₜ₊₁ + λₜ₊₁ Gₜ₊₁].
+  When lambda_t == 1. (default), this reduces to
+     Gₜ = rₜ₊₁ + γₜ₊₁ * (rₜ₊₂ + γₜ₊₂ * (... * (rₜ₊ₙ + γₜ₊ₙ * vₜ₊ₙ ))).
+  Args:
+    r_t: rewards at times [1, ..., T].
+    discount_t: discounts at times [1, ..., T].
+    v_t: state or state-action values to bootstrap from at time [1, ...., T].
+    n: number of steps over which to accumulate reward before bootstrapping.
+    lambda_t: lambdas at times [1, ..., T]. Shape is [], or [T-1].
+    stop_target_gradients: bool indicating whether or not to apply stop gradient
+      to targets.
+  Returns:
+    estimated bootstrapped returns at times [0, ...., T-1]
+  """
+  
+  seq_len = r_t.shape[0]
+
+  # Maybe change scalar lambda to an array.
+  lambda_t = jnp.ones_like(discount_t) * lambda_t
+
+  # Shift bootstrap values by n and pad end of sequence with last value v_t[-1].
+  pad_size = min(n - 1, seq_len)
+  targets = jnp.concatenate([v_t[n - 1:], jnp.array([v_t[-1]] * pad_size)])
+
+  # Pad sequences. Shape is now (T + n - 1,).
+  r_t = jnp.concatenate([r_t, jnp.zeros(n - 1)])
+  discount_t = jnp.concatenate([discount_t, jnp.ones(n - 1)])
+  lambda_t = jnp.concatenate([lambda_t, jnp.ones(n - 1)])
+  v_t = jnp.concatenate([v_t, jnp.array([v_t[-1]] * (n - 1))])
+
+  # Work backwards to compute n-step returns.
+  for i in reversed(range(n)):
+    r_ = r_t[i:i + seq_len]
+    discount_ = discount_t[i:i + seq_len]
+    lambda_ = lambda_t[i:i + seq_len]
+    v_ = v_t[i:i + seq_len]
+    targets = r_ + discount_ * ((1. - lambda_) * v_ + lambda_ * targets)
+
+  return jax.lax.select(stop_target_gradients,
+                        jax.lax.stop_gradient(targets), targets)    
