@@ -126,6 +126,9 @@ model_path = muax.fit(model, 'CartPole-v1',
 %load_ext tensorboard 
 %tensorboard --logdir=tensorboard/cartpole
 ```
+
+In the figure below, the model is able to solve the environment in ~500 episodes, ~30k updates
+
 ![tensorboard example](https://github.com/bwfbowen/muax/blob/main/assets/fig/tensorboard_example.png)
 
 6. We can also have more tests with the best parameter 
