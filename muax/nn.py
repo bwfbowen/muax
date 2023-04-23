@@ -21,8 +21,10 @@ def min_max_normalize(s):
 
 @jax.jit
 def min_max_normalize2d(s):
-    s_min = s.reshape(-1, s.shape[1]*s.shape[2], s.shape[3]).min(axis=1, keepdims=True)
-    s_max = s.reshape(-1, s.shape[1]*s.shape[2], s.shape[3]).max(axis=1, keepdims=True)
+    s_min = jnp.expand_dims(s.reshape(-1, s.shape[1]*s.shape[2], s.shape[3]).min(axis=1, keepdims=True),
+                        axis=1)
+    s_max = jnp.expand_dims(s.reshape(-1, s.shape[1]*s.shape[2], s.shape[3]).max(axis=1, keepdims=True),
+                        axis=1)
     s_scale = s_max - s_min 
     s_scale = jnp.where(s_scale < 1e-5, s_scale + 1e-5, s_scale)
     s_normed = (s - s_min) / s_scale 
