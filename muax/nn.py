@@ -2,16 +2,31 @@ import numpy as np
 import jax
 from jax import numpy as jnp 
 import haiku as hk
+from functools import partial
+
+
+def action2plane(action: int, shape):
+    return jnp.broadcast_to(action, shape)
 
 
 @jax.jit
 def min_max_normalize(s):
-  s_min = s.min(axis=1, keepdims=True)[0]
-  s_max = s.max(axis=1, keepdims=True)[0]
+  s_min = s.min(axis=1, keepdims=True)
+  s_max = s.max(axis=1, keepdims=True)
   s_scale = s_max - s_min 
   s_scale = jnp.where(s_scale < 1e-5, s_scale + 1e-5, s_scale)
   s_normed = (s - s_min) / (s_scale)
   return s_normed
+
+
+@jax.jit
+def min_max_normalize2d(s):
+    s_min = s.reshape(-1, s.shape[1]*s.shape[2], s.shape[3]).min(axis=1, keepdims=True)
+    s_max = s.reshape(-1, s.shape[1]*s.shape[2], s.shape[3]).max(axis=1, keepdims=True)
+    s_scale = s_max - s_min 
+    s_scale = jnp.where(s_scale < 1e-5, s_scale + 1e-5, s_scale)
+    s_normed = (s - s_min) / s_scale 
+    return s_normed
 
 
 class Representation(hk.Module):
@@ -44,7 +59,7 @@ class Prediction(hk.Module):
   def __call__(self, s):
     v = self.v_func(s)
     logits = self.pi_func(s)
-    logits = jax.nn.softmax(logits, axis=-1)
+    # logits = jax.nn.softmax(logits, axis=-1)
     return v, logits
 
 
@@ -165,7 +180,7 @@ class EZStateEncoder(hk.Module):
         return hk.Sequential(torso)(observations)
     
 
-class ResNetRepresentation(hk.Module):
+class EZRepresentation(hk.Module):
   def __init__(self, embedding_dim, name='representation'):
     super().__init__(name=name)
 
@@ -176,7 +191,7 @@ class ResNetRepresentation(hk.Module):
     return s 
 
 
-class ResNetPrediction(hk.Module):
+class EZPrediction(hk.Module):
   def __init__(self, num_actions, full_support_size, output_init_scale, use_v2=True, name='prediction'):
     super().__init__(name=name)      
 
@@ -216,7 +231,7 @@ class ResNetPrediction(hk.Module):
     return v, logits
 
 
-class ResNetDynamic(hk.Module):
+class EZDynamic(hk.Module):
   def __init__(self, embedding_dim, num_actions, full_support_size, output_init_scale, use_v2=True, name='dynamic'):
     super().__init__(name=name)
 
@@ -265,21 +280,107 @@ class ResNetDynamic(hk.Module):
     r = self.r_func(out)
     ns = out
     return r, ns
+  
 
 
-def _init_resnet_representation_func(representation_module, embedding_dim):
+class ResNetRepresentation(hk.Module):
+  def __init__(self, input_channels: int = 32, name='representation'):
+    super().__init__(name=name)
+    
+    self.repr_func = hk.Sequential(
+      [lambda x: x / 255.]
+      + [hk.Conv2D(input_channels, kernel_shape=3, stride=2, padding='SAME', with_bias=False), jax.nn.relu] 
+      + [ResidualConvBlockV1(channels=input_channels, stride=1, use_projection=True) for _ in range(2)]
+      + [hk.Conv2D(input_channels * 2, kernel_shape=3, stride=2, padding='SAME', with_bias=False), jax.nn.relu]
+      + [ResidualConvBlockV1(channels=input_channels * 2, stride=1, use_projection=True) for _ in range(3)]
+      + [hk.AvgPool(window_shape=(3, 3, 1), strides=(2, 2, 1), padding='SAME')]
+      + [ResidualConvBlockV1(channels=input_channels * 2, stride=1, use_projection=True) for _ in range(3)]
+      + [hk.AvgPool(window_shape=(3, 3, 1), strides=(2, 2, 1), padding='SAME')]
+    )
+
+  def __call__(self, obs):
+    s = self.repr_func(obs)
+    s = min_max_normalize2d(s)
+    return s 
+  
+
+class ResNetPrediction(hk.Module):
+  def __init__(self,  num_actions, full_support_size, output_channels: int = 16, name='prediction'):
+    super().__init__(name=name) 
+    
+    self.pi_func = hk.Sequential([
+      hk.Conv2D(output_channels, kernel_shape=1, stride=1, padding='SAME', with_bias=False),
+      jax.nn.relu,
+      hk.Flatten(),
+      hk.Linear(output_channels),
+      jax.nn.relu,
+      hk.Linear(num_actions)
+      ])
+    
+    self.v_func = hk.Sequential([
+      hk.Conv2D(output_channels, kernel_shape=1, stride=1, padding='SAME', with_bias=False),
+      jax.nn.relu,
+      hk.Conv2D(output_channels, kernel_shape=1, stride=1, padding='SAME', with_bias=False),
+      jax.nn.relu,
+      hk.Flatten(),
+      hk.Linear(output_channels),
+      jax.nn.relu,
+      hk.Linear(full_support_size)
+      ])
+  
+  def __call__(self, s):
+    v = self.v_func(s)
+    logits = self.pi_func(s)
+    return v, logits
+
+
+class ResNetDynamic(hk.Module):
+  def __init__(self, num_actions, full_support_size, output_channels: int = 64, name='dynamic'):
+    super().__init__(name=name)
+
+    self.r_func = hk.Sequential([
+      hk.Conv2D(output_channels, kernel_shape=1, stride=1, padding='SAME', with_bias=False),
+      jax.nn.relu,
+      hk.Conv2D(output_channels, kernel_shape=1, stride=1, padding='SAME', with_bias=False),
+      jax.nn.relu,
+      hk.Flatten(),
+      hk.Linear(output_channels),
+      jax.nn.relu,
+      hk.Linear(full_support_size)
+      ])
+
+    self.ns_func = hk.Sequential(
+      [hk.Conv2D(output_channels, kernel_shape=1, stride=1, padding='SAME', with_bias=False), jax.nn.relu,]
+      + [ResidualConvBlockV1(channels=output_channels, stride=1, use_projection=True) for _ in range(8)]
+      )
+
+    self.cat_func = jax.jit(lambda s, a: jnp.concatenate([s, a], axis=-1))
+    self.a_norm_func = jax.jit(lambda a: a / num_actions)
+    
+  def __call__(self, s, a):
+    n, h, w, c = s.shape 
+    a = self.a_norm_func(a)
+    va2p = jax.vmap(partial(action2plane, shape=(h,w,1)))
+    sa = self.cat_func(s, va2p(a))
+    r = self.r_func(sa)
+    ns = self.ns_func(sa)
+    ns = min_max_normalize2d(ns)
+    return r, ns  
+
+
+def _init_ez_representation_func(representation_module, embedding_dim):
     def representation_func(obs):
       repr_model = representation_module(embedding_dim)
       return repr_model(obs)
     return representation_func
   
-def _init_resnet_prediction_func(prediction_module, num_actions, full_support_size, output_init_scale):
+def _init_ez_prediction_func(prediction_module, num_actions, full_support_size, output_init_scale):
   def prediction_func(s):
     pred_model = prediction_module(num_actions, full_support_size, output_init_scale)
     return pred_model(s)
   return prediction_func
 
-def _init_resnet_dynamic_func(dynamic_module, embedding_dim, num_actions, full_support_size, output_init_scale):
+def _init_ez_dynamic_func(dynamic_module, embedding_dim, num_actions, full_support_size, output_init_scale):
   def dynamic_func(s, a):
     dy_model = dynamic_module(embedding_dim, num_actions, full_support_size, output_init_scale)
     return dy_model(s, a)
@@ -304,3 +405,21 @@ def _init_dynamic_func(dynamic_module, embedding_dim, num_actions, full_support_
     return dy_model(s, a)
   return dynamic_func 
     
+
+def _init_resnet_representation_func(representation_module, input_channels):
+    def representation_func(obs):
+      repr_model = representation_module(input_channels=input_channels)
+      return repr_model(obs)
+    return representation_func
+  
+def _init_resnet_prediction_func(prediction_module, num_actions, full_support_size, output_channels):
+  def prediction_func(s):
+    pred_model = prediction_module(num_actions, full_support_size, output_channels)
+    return pred_model(s)
+  return prediction_func
+
+def _init_resnet_dynamic_func(dynamic_module, num_actions, full_support_size, output_channels):
+  def dynamic_func(s, a):
+    dy_model = dynamic_module(num_actions, full_support_size, output_channels)
+    return dy_model(s, a)
+  return dynamic_func 
