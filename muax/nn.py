@@ -4,9 +4,7 @@ from jax import numpy as jnp
 import haiku as hk
 from functools import partial
 
-
-def action2plane(action: int, shape):
-    return jnp.broadcast_to(action, shape)
+from .utils import action2plane
 
 
 @jax.jit

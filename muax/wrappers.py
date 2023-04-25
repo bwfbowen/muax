@@ -41,6 +41,9 @@ from gymnasium import Wrapper
 from gymnasium.spaces import Discrete
 from tensorboardX import SummaryWriter
 
+from .utils import action2plane
+
+
 __all__ = (
     'TrainMonitor',
     'FrameStacking'
@@ -464,7 +467,7 @@ class FrameStacking(gymnasium.Wrapper):
             raise TypeError(f"num_frames must be a positive int, got: {num_frames}")
 
         super().__init__(env)
-        self.observation_space = gymnasium.spaces.Tuple((self.env.observation_space,) * num_frames)
+        self.observation_space = self._new_observation_space(env, num_frames)
         self._frames = deque(maxlen=num_frames)
 
     def step(self, action):
@@ -476,3 +479,96 @@ class FrameStacking(gymnasium.Wrapper):
         observation, info = self.env.reset(**kwargs)
         self._frames.extend(observation for _ in range(self._frames.maxlen))
         return np.stack(self._frames, axis=-1), info  # shallow copy
+    
+    def _new_observation_space(self, env, num_frames):
+        mutable_ = list(env.observation_space.shape)
+        mutable_.append(num_frames)
+        new_shape = tuple(mutable_)
+        new_low = np.stack([env.observation_space.low, env.observation_space.low], axis=-1)
+        new_high = np.stack([env.observation_space.high, env.observation_space.high], axis=-1)
+        
+        new_obs_space = type(env.observation_space)(shape=new_shape, low=new_low, high=new_high, dtype=env.observation_space.dtype)
+        return new_obs_space
+
+
+class ActionHistory(gymnasium.Wrapper):
+    r"""
+    Wrapper that integrated action history in observation (see `MuZero paper
+    <https://www.nature.com/articles/s41586-020-03051-4>`_).
+    This implementation expects observation without batch dimension, and processes the action differently based on
+    the observation's shape. If observation is 1D (len(obs.shape)==1), the action will be encoded into one hot and 
+    appended to the observation. If observation is not 1D (len(obs.shape) > 1), for instance, (H, W, C), then the action
+    will be encoded as plane, that has the shape (H, W, 1), and concatenated along the last axis(By default).
+    For `reset()`, an additional action that represents "do nothing" is encoded and appended to the observation. As for 
+    one hot, this means there will be (num_actions + 1) new dimensions, with the last dimension be the "do nothing" action.
+    As for plane, a plane of num_actions represents "do nothing".
+    
+    Example
+    -------
+    .. code::
+        import gymnasium
+        env = gymnasium.make('PongNoFrameskip-v0')
+        print(env.observation_space)  # Box(210, 160, 3)
+        env = ActionHistory(env, num_frames=2)
+        print(env.observation_space)  # Box(210, 160, 4)
+    Parameters
+    ----------
+    env : gymnasium-style environment
+        The original environment to be wrapped.
+    
+    num_actions: int
+        The maximum number of actions in the env.
+
+    axis : int
+        The axis to concatenate the action.
+    """
+    def __init__(self, env, num_actions: int, axis: int = -1):
+        super().__init__(env)
+        self.axis = axis 
+        self.num_actions = num_actions
+        self.observation_space, self._additional_axis = self._new_observation_space(env, num_actions, axis)
+
+    def step(self, action):
+        observation, reward, done, truncated, info = self.env.step(action)
+        observation_action = self._append_action(observation, action)
+        return observation_action, reward, done, truncated, info
+
+    def reset(self, **kwargs):
+        observation, info = self.env.reset(**kwargs)
+        observation_action = self._append_action(observation, self.num_actions)
+        return observation_action, info  
+    
+    def _append_action(self, obs, a):
+        num_actions = self.num_actions
+        if len(obs.shape) > 1:
+            a_broadcast = action2plane(a, self._additional_axis)
+            obs_a = np.concatenate([obs, a_broadcast], axis=self.axis)
+        else:
+            a_onehot = np.zeros((num_actions + 1,))
+            a_onehot[a] = 1
+            obs_a = np.concatenate([obs, a_onehot], axis=self.axis)
+        return obs_a 
+    
+    def _new_observation_space(self, env, num_actions, axis):
+        if len(env.observation_space.shape) > 1:
+            mutable_ = list(env.observation_space.shape)
+            mutable_[axis] += 1
+            new_shape = tuple(mutable_)
+            additional_axis_ = list(env.observation_space.shape)
+            additional_axis_[axis] = 1
+            additional_axis = tuple(additional_axis_)
+            new_low = np.concatenate([env.observation_space.low, action2plane(0, additional_axis)], axis=axis)
+            new_high = np.concatenate([env.observation_space.high, action2plane(num_actions, additional_axis)], axis=axis)
+        else:
+            mutable_ = list(env.observation_space.shape)
+            mutable_[axis] += num_actions + 1
+            new_shape = tuple(mutable_)
+            additional_axis_ = list(env.observation_space.shape)
+            additional_axis_[axis] = num_actions + 1
+            additional_axis = tuple(additional_axis_)
+            new_low = np.concatenate([env.observation_space.low, action2plane(0, additional_axis)], axis=axis)
+            new_high = np.concatenate([env.observation_space.high, action2plane(1, additional_axis)], axis=axis)
+        
+        self._additional_axis = additional_axis
+        new_obs_space = type(env.observation_space)(shape=new_shape, low=new_low, high=new_high, dtype=env.observation_space.dtype)
+        return new_obs_space, additional_axis

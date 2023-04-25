@@ -217,3 +217,7 @@ def n_step_bootstrapped_returns(
 
   return jax.lax.select(stop_target_gradients,
                         jax.lax.stop_gradient(targets), targets)    
+
+
+def action2plane(action: int, shape):
+    return jnp.broadcast_to(action, shape)
