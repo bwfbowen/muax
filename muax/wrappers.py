@@ -484,8 +484,8 @@ class FrameStacking(gymnasium.Wrapper):
         mutable_ = list(env.observation_space.shape)
         mutable_.append(num_frames)
         new_shape = tuple(mutable_)
-        new_low = np.stack([env.observation_space.low, env.observation_space.low], axis=-1)
-        new_high = np.stack([env.observation_space.high, env.observation_space.high], axis=-1)
+        new_low = np.stack([env.observation_space.low for _ in range(num_frames)], axis=-1)
+        new_high = np.stack([env.observation_space.high for _ in range(num_frames)], axis=-1)
         
         new_obs_space = type(env.observation_space)(shape=new_shape, low=new_low, high=new_high, dtype=env.observation_space.dtype)
         return new_obs_space
