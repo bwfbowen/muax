@@ -134,7 +134,7 @@ def fit(model,
   else:
     model_dir = model_save_path 
 
-  sample_input = jnp.expand_dims(np.stack(env.observation_space.sample(), axis=-1), axis=0).astype(float)
+  sample_input = jnp.expand_dims(env.observation_space.sample(), axis=0).astype(float)
   key = jax.random.PRNGKey(random_seed)
   key, test_key, subkey = jax.random.split(key, num=3)
   model.init(subkey, sample_input) 
