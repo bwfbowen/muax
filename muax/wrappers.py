@@ -461,32 +461,47 @@ class FrameStacking(gymnasium.Wrapper):
         The original environment to be wrapped.
     num_frames : positive int
         Number of frames to stack.
+    new_axis: bool
+        To stack on the new axis or on the last axis. Default is True, that is, creates a new axis.
     """
-    def __init__(self, env, num_frames):
+    def __init__(self, env, num_frames, new_axis: bool = True):
         if not (isinstance(num_frames, int) and num_frames > 0):
             raise TypeError(f"num_frames must be a positive int, got: {num_frames}")
 
         super().__init__(env)
+        self.new_axis = new_axis
         self.observation_space = self._new_observation_space(env, num_frames)
         self._frames = deque(maxlen=num_frames)
 
     def step(self, action):
         observation, reward, done, truncated, info = self.env.step(action)
         self._frames.append(observation)
-        return np.stack(self._frames, axis=-1), reward, done, truncated, info
+        if self.new_axis:
+          observation_stacked = np.stack(self._frames, axis=-1)
+        else:
+          observation_stacked = np.concatenate(self._frames, axis=-1)
+        return observation_stacked, reward, done, truncated, info
 
     def reset(self, **kwargs):
         observation, info = self.env.reset(**kwargs)
         self._frames.extend(observation for _ in range(self._frames.maxlen))
-        return np.stack(self._frames, axis=-1), info  # shallow copy
+        if self.new_axis:
+          observation_stacked = np.stack(self._frames, axis=-1)
+        else:
+          observation_stacked = np.concatenate(self._frames, axis=-1)
+        return observation_stacked, info  # shallow copy
     
     def _new_observation_space(self, env, num_frames):
         mutable_ = list(env.observation_space.shape)
-        mutable_.append(num_frames)
+        if self.new_axis:
+          mutable_.append(num_frames)
+          new_low = np.stack([env.observation_space.low for _ in range(num_frames)], axis=-1)
+          new_high = np.stack([env.observation_space.high for _ in range(num_frames)], axis=-1)
+        else:
+          mutable_[-1] = mutable_[-1] * num_frames
+          new_low = np.concatenate([env.observation_space.low for _ in range(num_frames)], axis=-1)
+          new_high = np.concatenate([env.observation_space.high for _ in range(num_frames)], axis=-1)
         new_shape = tuple(mutable_)
-        new_low = np.stack([env.observation_space.low for _ in range(num_frames)], axis=-1)
-        new_high = np.stack([env.observation_space.high for _ in range(num_frames)], axis=-1)
-        
         new_obs_space = type(env.observation_space)(shape=new_shape, low=new_low, high=new_high, dtype=env.observation_space.dtype)
         return new_obs_space
 
