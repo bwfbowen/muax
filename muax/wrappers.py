@@ -501,7 +501,8 @@ class ActionHistory(gymnasium.Wrapper):
     will be encoded as plane, that has the shape (H, W, 1), and concatenated along the last axis(By default).
     For `reset()`, an additional action that represents "do nothing" is encoded and appended to the observation. As for 
     one hot, this means there will be (num_actions + 1) new dimensions, with the last dimension be the "do nothing" action.
-    As for plane, a plane of num_actions represents "do nothing".
+    As for plane, a plane of num_actions represents "do nothing". Normalization is applied if `scale_action` is True.
+    That is, the action dimension will `/= num_actions`
     
     Example
     -------
@@ -521,11 +522,15 @@ class ActionHistory(gymnasium.Wrapper):
 
     axis : int
         The axis to concatenate the action.
+
+    scale_action: bool
+        Whether to scale the action dimension to [0, 1] range. Default is True.
     """
-    def __init__(self, env, num_actions: int, axis: int = -1):
+    def __init__(self, env, num_actions: int, axis: int = -1, scale_action: bool = True):
         super().__init__(env)
         self.axis = axis 
         self.num_actions = num_actions
+        self.scale_action = scale_action
         self.observation_space, self._additional_axis = self._new_observation_space(env, num_actions, axis)
 
     def step(self, action):
@@ -542,6 +547,8 @@ class ActionHistory(gymnasium.Wrapper):
         num_actions = self.num_actions
         if len(obs.shape) > 1:
             a_broadcast = action2plane(a, self._additional_axis)
+            if self.scale_action:
+              a_broadcast /= num_actions
             obs_a = np.concatenate([obs, a_broadcast], axis=self.axis)
         else:
             a_onehot = np.zeros((num_actions + 1,))
@@ -558,7 +565,10 @@ class ActionHistory(gymnasium.Wrapper):
             additional_axis_[axis] = 1
             additional_axis = tuple(additional_axis_)
             new_low = np.concatenate([env.observation_space.low, action2plane(0, additional_axis)], axis=axis)
-            new_high = np.concatenate([env.observation_space.high, action2plane(num_actions, additional_axis)], axis=axis)
+            if not self.scale_action:
+              new_high = np.concatenate([env.observation_space.high, action2plane(num_actions, additional_axis)], axis=axis)
+            else:
+              new_high = np.concatenate([env.observation_space.high, action2plane(1, additional_axis)], axis=axis)
         else:
             mutable_ = list(env.observation_space.shape)
             mutable_[axis] += num_actions + 1
