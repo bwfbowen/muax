@@ -40,9 +40,10 @@ class Trajectory:
     r"""
     A simple trajectory to hold episodical transitions.
     """
-    def __init__(self):
+    def __init__(self, transition_class=Transition):
       self.trajectory = sliceable_deque([])
       self._transition_weight = sliceable_deque([])
+      self.transition_class = transition_class
       self._batched_transitions = None
     
     def add(self, transition):
@@ -61,10 +62,10 @@ class Trajectory:
       """vstack individual transitions into one instance of Transition."""
       batched_transitions = jax.tree_util.tree_transpose(
           outer_treedef=jax.tree_util.tree_structure([0 for i in self.trajectory]),
-          inner_treedef=jax.tree_util.tree_structure(Transition()),
+          inner_treedef=jax.tree_util.tree_structure(self.transition_class()),
           pytree_to_transpose=self.trajectory
           )
-      batched_transitions = Transition(*(np.expand_dims(_attr, axis=0)
+      batched_transitions = self.transition_class(*(np.expand_dims(_attr, axis=0)
           for _attr in batched_transitions))
       self._batched_transitions = batched_transitions
 
@@ -162,10 +163,11 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
     random_seed : int, optional
         To get reproducible results.
     """
-    def __init__(self, capacity, random_seed=None):
+    def __init__(self, capacity, random_seed=None, transition_class=Transition):
         self._capacity = int(capacity)
         random.seed(random_seed)
         self._random_state = random.getstate()
+        self.transition_class = transition_class
         self.clear()  # sets self._storage
 
     @property
@@ -232,9 +234,9 @@ class TrajectoryReplayBuffer(BaseReplayBuffer):
         
         batch = jax.tree_util.tree_transpose(
           outer_treedef=jax.tree_util.tree_structure([0 for i in batch]),
-          inner_treedef=jax.tree_util.tree_structure(Transition()),
+          inner_treedef=jax.tree_util.tree_structure(self.transition_class()),
           pytree_to_transpose=batch)
-        batch = Transition(*(np.vstack(v) for v in batch))
+        batch = self.transition_class(*(np.vstack(v) for v in batch))
         return batch
 
     def clear(self):
