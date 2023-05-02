@@ -127,9 +127,10 @@ class NStep(BaseTracer):
 
     """
 
-    def __init__(self, n, gamma):
+    def __init__(self, n, gamma, transition_class=Transition):
         self.n = int(n)
         self.gamma = float(gamma)
+        self.transition_class = transition_class
         self.reset()
 
     def reset(self):
@@ -190,7 +191,7 @@ class NStep(BaseTracer):
         
         Rn += v_next * gamman
 
-        return Transition(obs=obs, a=a, r=r, done=done, Rn=Rn, v=v, pi=pi, w=w)
+        return self.transition_class(obs=obs, a=a, r=r, done=done, Rn=Rn, v=v, pi=pi, w=w)
 
 
 class PNStep(NStep):
@@ -213,9 +214,9 @@ class PNStep(NStep):
     alpha: float between 0 and 1
         The PER alpha.
     """
-    def __init__(self, n, gamma, alpha: float = 0.5):
+    def __init__(self, n, gamma, alpha: float = 0.5, transition_class=Transition):
       self.alpha = float(alpha)
-      super().__init__(n, gamma)
+      super().__init__(n, gamma, transition_class)
     
     def pop(self):
         # if not self:
@@ -245,4 +246,4 @@ class PNStep(NStep):
 
         w = abs(v - Rn) ** self.alpha
 
-        return Transition(obs=obs, a=a, r=r, done=done, Rn=Rn, v=v, pi=pi, w=w)
+        return self.transition_class(obs=obs, a=a, r=r, done=done, Rn=Rn, v=v, pi=pi, w=w)
