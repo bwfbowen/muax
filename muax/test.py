@@ -23,6 +23,10 @@ def test(model, env, key, num_simulations, num_test_episodes=10, random_seed=Non
     -------
     average_test_reward: float. The average total reward for `num_test_episodes` tests.
     """
+    try:
+        mask = env.get_invalid_actions_mask
+    except AttributeError:
+        mask = lambda: None
     total_rewards = np.zeros(num_test_episodes)
     for episode in range(num_test_episodes):
         obs, info = env.reset(seed=random_seed)
@@ -35,7 +39,8 @@ def test(model, env, key, num_simulations, num_test_episodes=10, random_seed=Non
                           with_value=False, 
                           obs_from_batch=False,
                           num_simulations=num_simulations,
-                          temperature=0.) # Use deterministic actions during testing
+                          temperature=0., # Use deterministic actions during testing
+                          invalid_actions=mask())
             obs_next, r, done, truncated, info = env.step(a)
             episode_reward += r
             if done or truncated:

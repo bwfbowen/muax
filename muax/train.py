@@ -121,6 +121,11 @@ def fit(model,
       test_env = gym.make(env_id, render_mode='rgb_array')
     else:
       raise ValueError("You must provide `test_env` when using a custom `env`.")
+    
+  try:
+      mask = env.get_invalid_actions_mask
+  except AttributeError:
+      mask = lambda: None
 
   if name is None:
     name = env_id if env_id is not None else 'tmp'
@@ -157,7 +162,8 @@ def fit(model,
                            with_value=True, 
                            obs_from_batch=False,
                            num_simulations=num_simulations,
-                           temperature=temperature)
+                           temperature=temperature,
+                           invalid_actions=mask())
       obs_next, r, done, truncated, info = env.step(a)
 #       if truncated:
 #         r = 1 / (1 - tracer.gamma)
@@ -187,7 +193,8 @@ def fit(model,
                            with_value=True, 
                            obs_from_batch=False,
                            num_simulations=num_simulations,
-                           temperature=temperature)
+                           temperature=temperature,
+                           invalid_actions=mask())
       obs_next, r, done, truncated, info = env.step(a)
 #       if truncated:
 #         r = 1 / (1 - tracer.gamma)
