@@ -15,6 +15,8 @@ from . import wrappers
 from . import utils
 from . import loss
 
+from . import sb3
+
 __all__ = (
   'NStep',
   'PNStep',

@@ -1,0 +1,5 @@
+.gitignocre
+data/*
+*/__pycache__/*
+*/data/*
+test.ipynb
