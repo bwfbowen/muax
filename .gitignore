@@ -1,5 +1,5 @@
 .gitignocre
 data/*
-*/__pycache__/*
+__pycache__/
 */data/*
 test.ipynb
