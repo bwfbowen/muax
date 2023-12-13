@@ -41,7 +41,7 @@ from gymnasium import Wrapper
 from gymnasium.spaces import Discrete
 from tensorboardX import SummaryWriter
 
-from muax.utils import action2plane
+from muax.frameworks.coax.utils import action2plane
 
 
 __all__ = (

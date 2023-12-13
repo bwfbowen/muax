@@ -7,10 +7,10 @@ from jax import numpy as jnp
 import gymnasium as gym 
 from typing import Optional
 
-from muax.wrappers import TrainMonitor
-from muax.episode_tracer import PNStep
-from muax.replay_buffer import Trajectory, TrajectoryReplayBuffer
-from muax.test import test
+from muax.frameworks.coax.wrappers import TrainMonitor
+from muax.frameworks.coax.episode_tracer import PNStep
+from muax.frameworks.coax.replay_buffer import Trajectory, TrajectoryReplayBuffer
+from muax.frameworks.coax.test import test
 
 
 def _temperature_fn(max_training_steps, training_steps):

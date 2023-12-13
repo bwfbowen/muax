@@ -3,7 +3,7 @@ import jax
 from jax import numpy as jnp
 import optax
 
-from muax.utils import scalar_to_support, scale_gradient
+from muax.frameworks.coax.utils import scalar_to_support, scale_gradient
 
 
 @partial(jax.jit, static_argnums=(0, ))

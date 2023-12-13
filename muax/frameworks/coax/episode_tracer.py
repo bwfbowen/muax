@@ -34,7 +34,7 @@ import numpy as np
 import jax
 from jax import numpy as jnp
 
-from muax.utils import sliceable_deque, n_step_bootstrapped_returns
+from muax.frameworks.coax.utils import sliceable_deque, n_step_bootstrapped_returns
 
 
 @dataclass

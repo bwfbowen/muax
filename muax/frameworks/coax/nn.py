@@ -4,7 +4,7 @@ from jax import numpy as jnp
 import haiku as hk
 from functools import partial
 
-from muax.utils import action2plane
+from muax.frameworks.coax.utils import action2plane
 
 
 @jax.jit

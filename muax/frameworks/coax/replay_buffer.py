@@ -32,8 +32,8 @@ import numpy as np
 import jax 
 from jax import numpy as jnp
 
-from muax.utils import sliceable_deque
-from muax.episode_tracer import Transition
+from muax.frameworks.coax.utils import sliceable_deque
+from muax.frameworks.coax.episode_tracer import Transition
 
    
 class Trajectory:

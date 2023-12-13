@@ -1,0 +1,6 @@
+mctx
+dm-haiku
+optax
+gymnasium
+lz4
+tensorboardX

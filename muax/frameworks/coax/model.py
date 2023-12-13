@@ -10,8 +10,8 @@ import haiku as hk
 
 import warnings
 
-from muax.utils import scale_gradient, scalar_to_support, support_to_scalar
-from muax.loss import default_loss_fn
+from muax.frameworks.coax.utils import scale_gradient, scalar_to_support, support_to_scalar
+from muax.frameworks.coax.loss import default_loss_fn
 
 
 class MZNetworkParams(NamedTuple):
