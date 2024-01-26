@@ -16,22 +16,40 @@
 
 import functools
 import os
-from typing import Tuple
+from typing import Tuple, Optional
 
 from absl import flags
 from acme import specs
 from acme import wrappers
 from acme.agents.jax import dqn
 from acme.jax import networks as networks_lib
+from acme.wrappers import EnvironmentWrapper
 from acme.jax import utils
+from acme.utils import loggers
 import atari_py  # pylint:disable=unused-import
 import dm_env
+from dm_env import TimeStep
 import gym
 import haiku as hk
 import jax.numpy as jnp
 
 
 FLAGS = flags.FLAGS
+
+
+def make_classiccontrol_environment(
+    level: str = 'CartPole',
+
+) -> dm_env.Environment:
+  versions = {'CartPole': 'v1'}
+  level_name = f'{level}-{versions[level]}'
+  env = gym.make(level_name)
+
+  wrapper_list = [
+      wrappers.GymWrapper,
+      wrappers.SinglePrecisionWrapper,
+  ]
+  return wrappers.wrap_all(env, wrapper_list)
 
 
 def make_atari_environment(
@@ -111,3 +129,33 @@ def make_distributional_dqn_atari_network(
       init=lambda rng: network_hk.init(rng, obs), apply=network_hk.apply)
   typed_network = networks_lib.non_stochastic_network_to_typed(network)
   return dqn.DQNNetworks(policy_network=typed_network)
+
+
+# class ValuePolicyLogger(EnvironmentWrapper):
+#   def __init__(self, 
+#                environment: dm_env.Environment,
+#                logger: Optional[loggers.Logger] = None,
+#                csv_directory: str = '~/acme_test',
+#                policy_key: str = 'pi',
+#                value_key: str = 'value',
+#   ):
+#         super().__init__(environment)
+#         self._logger = logger or loggers.TerminalLogger()
+#         self._csv_logger = loggers.CSVLogger(directory_or_file=csv_directory, label='env_csv_log') if csv_directory else None 
+#         self._policy_key = policy_key
+#         self._value_key = value_key
+#         self._cur_step = 0
+  
+#   def step(self, action) -> dm_env.TimeStep:
+#     transition = super().step(action)
+#     self._cur_step += 1
+#     pi = transition.extras[self._policy_key]
+#     v = transition.extras[self._value_key]
+#     _log = {'pi': pi, 'value': v}
+#     self._logger.write(_log)
+#     if self._csv_logger: self._csv_logger.write(_log)
+  
+#   def reset(self) -> dm_env.TimeStep:
+#     transition = super().reset()
+#     self._cur_step = 0
+#     return transition

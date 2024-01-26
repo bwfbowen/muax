@@ -19,7 +19,7 @@ import math
 
 from absl import flags
 from acme import specs
-from muax.frameworks.acme import muzero
+from muax.frameworks.acme.jax import muzero
 import helpers
 from absl import app
 from acme.jax import experiments
@@ -29,11 +29,18 @@ import dm_env
 import launchpad as lp
 
 
-ENV_NAME = flags.DEFINE_string('env_name', 'Pong', 'What environment to run')
+# ENV_NAME = flags.DEFINE_string('env_name', 'Pong', 'What environment to run')
+ENV_NAME = flags.DEFINE_string('env_name', 'CartPole', 'What environment to run')
 SEED = flags.DEFINE_integer('seed', 0, 'Random seed.')
 NUM_STEPS = flags.DEFINE_integer(
     'num_steps', 2_000_000, 'Number of env steps to run.'
 )
+EVAL_EVERY = flags.DEFINE_integer(
+    'eval_every', 50,
+    'How often (in actor environment steps) to run evaluation episodes.')
+EVAL_EPISODES = flags.DEFINE_integer(
+    'evaluation_episodes', 0,
+    'Number of evaluation episodes to run periodically.')
 NUM_LEARNERS = flags.DEFINE_integer('num_learners', 1, 'Number of learners.')
 NUM_ACTORS = flags.DEFINE_integer('num_actors', 4, 'Number of actors.')
 NUM_ACTORS_PER_NODE = flags.DEFINE_integer(
@@ -42,7 +49,7 @@ NUM_ACTORS_PER_NODE = flags.DEFINE_integer(
     'Number of colocated actors',
 )
 RUN_DISTRIBUTED = flags.DEFINE_bool(
-    'run_distributed', True, 'Should an agent be executed in a distributed '
+    'run_distributed', False, 'Should an agent be executed in a distributed '
     'way. If False, will run single-threaded.',)
 
 
@@ -51,24 +58,29 @@ def build_experiment_config() -> experiments.ExperimentConfig:
   env_name = ENV_NAME.value
   muzero_config = muzero.MZConfig()
 
+#   def env_factory(seed: int) -> dm_env.Environment:
+#     del seed
+#     return helpers.make_atari_environment(
+#         level=env_name,
+#         sticky_actions=True,
+#         zero_discount_on_life_loss=True,
+#         num_stacked_frames=1,
+#         grayscaling=False,
+#         to_float=False,
+#     )
   def env_factory(seed: int) -> dm_env.Environment:
-    del seed
-    return helpers.make_atari_environment(
-        level=env_name,
-        sticky_actions=True,
-        zero_discount_on_life_loss=True,
-        num_stacked_frames=1,
-        grayscaling=False,
-        to_float=False,
-    )
+    del seed 
+    return helpers.make_classiccontrol_environment(level=env_name)
 
   def network_factory(
       spec: specs.EnvironmentSpec,
   ) -> muzero.MzNetworks:
-    return muzero.make_network(
-        spec,
-        stack_size=muzero_config.stack_size,
-    )
+    return muzero.make_mlp_networks(
+      spec, 
+      full_support_size=muzero_config.full_support_size,
+      vmin=muzero_config.vmin,
+      vmax=muzero_config.vmax,
+      )
 
   # Construct the builder.
   env_spec = specs.make_environment_spec(env_factory(SEED.value))
@@ -101,27 +113,16 @@ def main(_):
   experiment_config = build_experiment_config()
 
   if not RUN_DISTRIBUTED.value:
-    raise NotImplementedError('Single threaded experiment not supported.')
-
-  inference_server_config = inference_server_lib.InferenceServerConfig(
-      batch_size=64,
-      update_period=400,
-      timeout=datetime.timedelta(
-          seconds=1,
-      ),
-  )
-  num_inference_servers = math.ceil(
-      NUM_ACTORS.value / (128 * NUM_ACTORS_PER_NODE.value),
-  )
+    experiments.run_experiment(
+      experiment=experiment_config,
+      eval_every=EVAL_EVERY.value, 
+      num_eval_episodes=EVAL_EPISODES.value)
 
   program = experiments.make_distributed_experiment(
       experiment=experiment_config,
       num_actors=NUM_ACTORS.value,
       num_learner_nodes=NUM_LEARNERS.value,
-      num_actors_per_node=NUM_ACTORS_PER_NODE.value,
-      num_inference_servers=num_inference_servers,
-      inference_server_config=inference_server_config,
-  )
+      num_actors_per_node=NUM_ACTORS_PER_NODE.value,)
   lp.launch(program, xm_resources=lp_utils.make_xm_docker_resources(program,),)
 
 

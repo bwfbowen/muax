@@ -1,7 +1,9 @@
-from typing import Generic, Iterator, List, Optional
+from typing import Generic, Iterator, List, Optional, Dict
 
 import functools
 import jax 
+import optax 
+import chex 
 import tensorflow as tf 
 from absl import logging
 from acme import core, specs
@@ -17,6 +19,7 @@ from acme.utils import counting, loggers
 from muax.frameworks.acme.jax.muzero import networks as mz_networks
 from muax.frameworks.acme.jax.muzero import config as mz_config
 from muax.frameworks.acme.jax.muzero import acting
+from muax.frameworks.acme.jax.muzero import learning
 from acme.jax import networks as networks_lib, observation_stacking as obs_stacking
 from acme.jax import types as jax_types
 from acme.jax import variable_utils
@@ -31,8 +34,13 @@ _ONLINE_TABLE_NAME = 'online_table'
 
 class MZBuilder(builders.ActorLearnerBuilder):
 
-    def __init__(self, config: mz_config.MuZeroConfig):
+    def __init__(
+        self, 
+        config: mz_config.MuZeroConfig,
+        extra_spec: Dict,
+    ):
         self.config = config 
+        self.extra_spec = extra_spec
         self._adjust_sequence_length = (self.config.sequence_length 
                                         + self.config.num_stacked_observations
                                         - 1)
@@ -49,11 +57,12 @@ class MZBuilder(builders.ActorLearnerBuilder):
             environment_spec=environment_spec,
             evaluation=evaluation
         )
-        # actor-side observation stacking
-        actor_core = obs_stacking.wrap_actor_core(
-            actor_core=actor_core,
-            observation_spec=environment_spec.observations,
-            num_stacked_observations=self.config.num_stacked_observations)
+        if self.config.num_stacked_observations > 1:
+            # actor-side observation stacking
+            actor_core = obs_stacking.wrap_actor_core(
+                actor_core=actor_core,
+                observation_spec=environment_spec.observations,
+                num_stacked_observations=self.config.num_stacked_observations)
         
         return actor_core
     
@@ -228,13 +237,32 @@ class MZBuilder(builders.ActorLearnerBuilder):
                 f' available learner devices is {jax.device_count()}. Specifically,'
                 f' devices: {jax.devices()}.')
         
-        agent_environment_spec = obs_stacking.get_adjusted_environment_spec(
-          environment_spec, self.config.num_stacked_observations)
+        agent_environment_spec = environment_spec
+        if self.config.num_stacked_observations > 1:
+            agent_environment_spec = obs_stacking.get_adjusted_environment_spec(
+            environment_spec, self.config.num_stacked_observations)
         
         logger = logger_fn(
             'learner',
             steps_key=counter.get_steps_key() if counter else 'learner_steps')
         
-        return 
+        optimizer = optax.adamw(
+            self.config.learning_rate,
+            b1=self.config.adam_b1,
+            b2=self.config.adam_b2,
+            weight_decay=self.config.weight_decay)
+        
+        with chex.fake_pmap_and_jit(not self.config.jit_learner,
+                                    not self.config.jit_learner):
+            learner = learning.MZLearner(
+                config=self.config,
+                networks=networks,
+                environment_spec=agent_environment_spec,
+                iterator=dataset,
+                optimizer=optimizer,
+                logger=logger,
+                random_key=random_key,
+            )
+        return learner
     
     

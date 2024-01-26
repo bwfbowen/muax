@@ -3,6 +3,7 @@ import numpy as np
 import jax 
 from jax import numpy as jnp 
 import mctx 
+import rlax 
 from acme import specs 
 from acme.jax import networks as networks_lib
 from acme.agents.jax import actor_core as actor_core_lib
@@ -11,6 +12,10 @@ from acme.jax import utils as jax_utils
 from muax.frameworks.acme.jax.muzero import config as mz_config
 from muax.frameworks.acme.jax.muzero import networks as mz_networks
 from muax.frameworks.acme.jax.muzero import types
+
+
+POLICY_PROBS_KEY = 'pi'
+RAW_VALUES_KEY = 'value'
 
 
 class ActorState(NamedTuple):
@@ -33,16 +38,16 @@ def make_actor_core(networks: mz_networks.MZNetworks,
         return ActorState(
             key=next_key,
             step=0,
-            value=np.zeros(shape=(1,), dtype=np.float32),
-            pi=np.zeros(shape=(1, environment_spec.actions.num_values), dtype=np.float32)
+            value=np.zeros(shape=(), dtype=np.float32),
+            pi=np.zeros(shape=(environment_spec.actions.num_values,), dtype=np.float32)
         )
 
     def get_extras(state: ActorState) -> Mapping[str, jnp.ndarray]:
         extras = {}
         if with_pi:
-            extras['pi'] = state.pi 
+            extras[POLICY_PROBS_KEY] = state.pi 
         if with_value:
-            extras['value'] = state.value
+            extras[RAW_VALUES_KEY] = state.value
         return extras 
 
     def get_select_action_policy(
@@ -56,10 +61,14 @@ def make_actor_core(networks: mz_networks.MZNetworks,
             repr_fn = networks.representation_network.apply
             pred_fn = networks.prediction_network.apply
 
-            def root_inference(params, key, obs):
-                embedding = repr_fn(params, obs)
-                value, logits = pred_fn(params, embedding)
-                value = config.support_to_scalar_fn(jax.nn.softmax(value), config.support_size).flatten()
+            def root_inference(params: mz_networks.MZNetworkParams, key, obs):
+                embedding = repr_fn(params.representation, obs)
+                value_output, logits = pred_fn(params.prediction, embedding)
+                value = rlax.transform_from_2hot(
+                    jax.nn.softmax(value_output.logits), 
+                    value_output.values.min(), 
+                    value_output.values.max(), 
+                    config.full_support_size).flatten()
                 root = mctx.RootFnOutput(
                     prior_logits=logits,
                     value=value,
@@ -74,11 +83,20 @@ def make_actor_core(networks: mz_networks.MZNetworks,
             dyna_fn = networks.dynamic_network.apply
             pred_fn = networks.prediction_network.apply
 
-            def recurrent_inference(params, key, action, embedding):
-                reward, next_embedding = dyna_fn(params, embedding, action)
-                value, logits = pred_fn(params, embedding)
-                reward = config.support_to_scalar_fn(jax.nn.softmax(reward), config.support_size).flatten()
-                value = config.support_to_scalar(jax.nn.softmax(value), config.support_size).flatten()
+            def recurrent_inference(params: mz_networks.MZNetworkParams, key, action, embedding):
+                reward_output, next_embedding = dyna_fn(params.dynamic, embedding, action)
+                # Thanks to SaeedAnas
+                value_output, logits = pred_fn(params.prediction, next_embedding)
+                reward = rlax.transform_from_2hot(
+                    jax.nn.softmax(reward_output.logits), 
+                    reward_output.values.min(), 
+                    reward_output.values.max(), 
+                    config.full_support_size).flatten()
+                value = rlax.transform_from_2hot(
+                    jax.nn.softmax(value_output.logits), 
+                    value_output.values.min(), 
+                    value_output.values.max(), 
+                    config.full_support_size).flatten()
                 discount = jnp.ones_like(reward) * config.discount
                 recurrent_output = mctx.RecurrentFnOutput(
                     reward=reward, 
@@ -101,7 +119,7 @@ def make_actor_core(networks: mz_networks.MZNetworks,
             root = root_inference_fn(params, key, observations) 
             plan_output = policy(params, key, root, recurrent_inference_fn,
                                 num_simulations=config.num_simulations,
-                                temperature=config.temperature_fn(config.num_steps, state.step) if not evaluation else 0.,
+                                temperature=params.temperature if not evaluation else 0.,
                                 invalid_actions=config.invalid_actions,
                                 max_depth=config.max_depth, 
                                 loop_fn=config.loop_fn,
@@ -114,8 +132,8 @@ def make_actor_core(networks: mz_networks.MZNetworks,
             return jax_utils.squeeze_batch_dim(plan_output.action), ActorState(
                 key=next_key,
                 step=state.step + 1,
-                value=root.value if with_value else (),
-                pi=plan_output.action_weights if with_pi else ())
+                value=jax_utils.squeeze_batch_dim(root.value) if with_value else (),
+                pi=jax_utils.squeeze_batch_dim(plan_output.action_weights) if with_pi else ())
             
         return select_action_policy
     

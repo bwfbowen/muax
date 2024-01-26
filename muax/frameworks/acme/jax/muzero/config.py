@@ -7,14 +7,13 @@ from acme.adders import reverb
 from acme.adders.reverb import base as reverb_base
 from muax.frameworks.acme.jax.muzero import types
 from muax.frameworks.acme.jax.muzero import utils
-from muax.utils import support_to_scalar, scalar_to_support
 
 
 @dataclasses.dataclass
 class MuZeroConfig:
     """MuZero config"""
     num_stacked_observations: int = 1
-    num_steps: int = int(1e4)
+    num_steps: int = int(1e3)
     num_simulations: int = 200
     invalid_actions: types.Action = None
     max_depth: int = None
@@ -26,19 +25,32 @@ class MuZeroConfig:
     dirichlet_fraction: float = 0.25
     dirichlet_alpha: float = 0.3
     discount: float = 0.99  # Discount rate applied to value per timestep.
-    support_size: int = 20
-    support_to_scalar_fn: Callable = support_to_scalar
-    scalar_to_support_fn: Callable = scalar_to_support
-    policy_jit_static_argnames: Tuple[str] = ('temperature', 'recurrent_fn', 'num_simulations', 'loop_fn', 'qtransform', 'max_depth', 'dirichlet_fraction', 'dirichlet_alpha', 'pb_c_init', 'pb_c_base')
+    policy_jit_static_argnames: Tuple[str] = ('recurrent_fn', 'num_simulations', 'loop_fn', 'qtransform', 'max_depth', 'dirichlet_fraction', 'dirichlet_alpha', 'pb_c_init', 'pb_c_base')
 
-    batch_size: int = 256
-    gradient_steps_per_learner_step: int = 16
+    batch_size: int = 32
+    gradient_steps_per_learner_step: int = 1
     learning_rate: Union[float, Callable[[int], float]] = 1e-4
+    adam_b1: float = 0.9
+    adam_b2: float = 0.999
+    weight_decay: float = 0.0
+
+    # 2hot critics/reward
+    full_support_size: int = 51
+    vmin: float = -150.
+    vmax: float = 150.
+
+    jit_learner: bool = True
+
+    loss_l2_reg_scale: float = 1e-4
 
     variable_update_period: int = 1000
     variable_client_backend: str = 'cpu'
 
     offline_fraction: float = 0.5
+
+    num_bootstrapping: int = 5
+    num_unroll_steps: int = 9
+    bootstrapping_lambda: float = 1.
 
     adder_type: reverb_base.ReverbAdder = reverb.SequenceAdder
     sequence_length: int = 10
