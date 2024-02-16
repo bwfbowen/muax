@@ -98,9 +98,19 @@ class MZBuilder(builders.ActorLearnerBuilder):
         del environment_spec
         priority_fns = {}
         if self.config.offline_fraction > 0:
-            priority_fns[adders.DEFAULT_PRIORITY_TABLE] = self.config.get_offline_priority_fn(policy)
+            priority_fns[adders.DEFAULT_PRIORITY_TABLE] = self.config.get_offline_priority_fn(
+                discount=self.config.discount,
+                num_bootstrapping=self.config.num_bootstrapping,
+                sequence_length=self.config.sequence_length,
+                bootstrapping_lambda=self.config.bootstrapping_lambda,
+                priority_alpha=self.config.priority_alpha)
         if self.config.offline_fraction < 1:
-            priority_fns[_ONLINE_TABLE_NAME] = self.config.get_online_priority_fn(policy)
+            priority_fns[_ONLINE_TABLE_NAME] = self.config.get_online_priority_fn(
+                discount=self.config.discount,
+                num_bootstrapping=self.config.num_bootstrapping,
+                sequence_length=self.config.sequence_length,
+                bootstrapping_lambda=self.config.bootstrapping_lambda,
+                priority_alpha=self.config.priority_alpha)
         if self.config.adder_type == adders.SequenceAdder:
             
             return adders.SequenceAdder(
@@ -262,6 +272,7 @@ class MZBuilder(builders.ActorLearnerBuilder):
                 optimizer=optimizer,
                 logger=logger,
                 random_key=random_key,
+                replay_client=replay_client,
             )
         return learner
     

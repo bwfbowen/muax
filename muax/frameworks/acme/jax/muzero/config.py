@@ -13,7 +13,7 @@ from muax.frameworks.acme.jax.muzero import utils
 class MuZeroConfig:
     """MuZero config"""
     num_stacked_observations: int = 1
-    num_steps: int = int(1e3)
+    num_steps: int = int(1e4)
     num_simulations: int = 200
     invalid_actions: types.Action = None
     max_depth: int = None
@@ -28,7 +28,7 @@ class MuZeroConfig:
     policy_jit_static_argnames: Tuple[str] = ('recurrent_fn', 'num_simulations', 'loop_fn', 'qtransform', 'max_depth', 'dirichlet_fraction', 'dirichlet_alpha', 'pb_c_init', 'pb_c_base')
 
     batch_size: int = 32
-    gradient_steps_per_learner_step: int = 1
+    gradient_steps_per_learner_step: int = 8
     learning_rate: Union[float, Callable[[int], float]] = 1e-4
     adam_b1: float = 0.9
     adam_b2: float = 0.999
@@ -48,16 +48,17 @@ class MuZeroConfig:
 
     offline_fraction: float = 0.5
 
-    num_bootstrapping: int = 5
-    num_unroll_steps: int = 9
+    num_bootstrapping: int = 10
+    num_unroll_steps: int = 5
     bootstrapping_lambda: float = 1.
 
     adder_type: reverb_base.ReverbAdder = reverb.SequenceAdder
     sequence_length: int = 10
     period: int = 1
     # priority based on value prediction error
+    priority_alpha: float = 1.
     get_offline_priority_fn: Callable = utils.get_priority_fn_with_replaybuffer
-    get_online_priority_fn: Callable = utils.get_priority_fn_with_replaybuffer
+    get_online_priority_fn: Callable = utils.get_priority_fn_with_reanalyse
 
     samples_per_insert: Optional[float] = 32.
     samples_per_insert_tolerance_ratio: Optional[float] = 0.1

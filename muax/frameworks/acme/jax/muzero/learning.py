@@ -105,19 +105,23 @@ class MZLearner(acme.Learner):
                     sum(tree.flatten(sizes.values())))
         
         # TODO: 
+        self._priority_name = 'updated_priority'
         # Update replay priorities
-        # def update_priorities(reverb_update: ReverbUpdate) -> None:
-        #     if replay_client is None:
-        #         return
-        #     keys, priorities = tree.map_structure(
-        #         # Fetch array and combine device and batch dimensions.
-        #         lambda x: utils.fetch_devicearray(x).reshape((-1,) + x.shape[2:]),
-        #         (reverb_update.keys, reverb_update.priorities))
-        #     replay_client.mutate_priorities(
-        #         table=adders.DEFAULT_PRIORITY_TABLE,
-        #         updates=dict(zip(keys, priorities)))
-        # self._replay_client = replay_client
-        # self._async_priority_updater = async_utils.AsyncExecutor(update_priorities)
+        def update_priorities(reverb_update: ReverbUpdate) -> None:
+            if replay_client is None:
+                return
+            keys, priorities = tree.map_structure(
+                # Fetch array and combine device and batch dimensions.
+                lambda x: utils.fetch_devicearray(x).reshape((-1,) + x.shape[2:]),
+                (reverb_update.keys, reverb_update.priorities))
+            replay_client.mutate_priorities(
+                table=adders.DEFAULT_PRIORITY_TABLE,
+                updates=dict(zip(keys, priorities)))
+        self._replay_client = replay_client
+        self._async_priority_updater = async_utils.AsyncExecutor(update_priorities)
+
+        def postprocess_aux(aux):
+            return {k: jnp.mean(v) if k != self._priority_name else v for k, v in aux.items()}
 
         self._current_step = 0
         self._timestamp = None 
@@ -125,9 +129,10 @@ class MZLearner(acme.Learner):
 
         gradient_steps = utils.process_multiple_batches(
             self._gradient_step, 
-            self._config.gradient_steps_per_learner_step)
+            self._config.gradient_steps_per_learner_step,
+            postprocess_aux=postprocess_aux)
         self._gradient_steps = jax.pmap(gradient_steps, axis_name=_PMAP_AXIS_NAME, devices=self._devices)
-        
+
     def _gradient_step(
             self,
             state: TrainingState,
@@ -137,7 +142,10 @@ class MZLearner(acme.Learner):
         random_key, keys = keys[0], keys[1]
         loss_vfn = jax.vmap(self._loss_fn, in_axes=(None, 0))
         safe_mean = lambda x: jnp.mean(x) if x is not None else x
-        loss_fn = lambda *a, **k: tree.map_structure(safe_mean, loss_vfn(*a, **k))
+        # loss_fn = lambda *a, **k: tree.map_structure(safe_mean, loss_vfn(*a, **k))
+        def loss_fn(*a, **k):
+            loss, loss_log_dict = loss_vfn(*a, **k) 
+            return safe_mean(loss), loss_log_dict
         loss_and_grad = jax.value_and_grad(loss_fn, has_aux=True)
         (_, loss_log_dict), all_gradients = loss_and_grad(state.params, batch)
         gradients = jax.lax.pmean(all_gradients, _PMAP_AXIS_NAME)
@@ -160,7 +168,7 @@ class MZLearner(acme.Learner):
             random_key=random_key
         )
 
-        metrics = {f'loss/{k}': v for k, v in loss_log_dict.items()}
+        metrics = {f'loss/{k}' if k != self._priority_name else k: safe_mean(v) if k != self._priority_name else v for k, v in loss_log_dict.items()}
         metrics.update({'opt/grad_norm': gradients_norm})
 
         return new_state, metrics
@@ -196,6 +204,13 @@ class MZLearner(acme.Learner):
                 init_policy_logits, jax.lax.stop_gradient(policy[:, 0]))
         )
         loss = loss_init_v + loss_init_pi
+
+        value_scalar = rlax.transform_from_2hot(
+                    jax.nn.softmax(init_v.logits), 
+                    init_v.values.min(), 
+                    init_v.values.max(), 
+                    self._config.full_support_size)
+        updated_priority = jnp.mean(jnp.abs(value_scalar - value_target_scalar[:, 0]) ** self._config.priority_alpha)
 
         def unroll_func(i, loss_s):
             loss, s = loss_s 
@@ -236,7 +251,8 @@ class MZLearner(acme.Learner):
         loss_logging_dict = {
             'loss': loss,
             'root_policy_loss': loss_init_pi,
-            'root_value_loss': loss_init_v,}
+            'root_value_loss': loss_init_v,
+            self._priority_name: updated_priority,}
         return loss, loss_logging_dict
     
     def _compute_value_target(self, batch: adders.Step) -> jnp.ndarray:
@@ -254,7 +270,7 @@ class MZLearner(acme.Learner):
         """Perform one learner step."""
         with jax.profiler.StepTraceAnnotation('step', step_num=self._current_step):
             sample = next(self._iterator)
-            # reverb_keys = sample.info.key
+            reverb_keys = sample.info.key
             minibatch = adders.Step(*sample.data)
             # minibatch is of shape (device?, batch * gradient steps, sequence length, data dimensions)
             self._state, metrics = self._gradient_steps(self._state, minibatch)
@@ -265,16 +281,16 @@ class MZLearner(acme.Learner):
             elapsed_time = timestamp - self._timestamp if self._timestamp else 0
             self._timestamp = timestamp
 
-            # if self._replay_client and metrics is not None:
-            #     reverb_update = ReverbUpdate(reverb_keys, metrics['loss/root_value_loss'])
-            #     self._async_priority_updater.put(reverb_update)
+            if self._replay_client and metrics is not None:
+                reverb_update = ReverbUpdate(reverb_keys, metrics[self._priority_name])
+                self._async_priority_updater.put(reverb_update)
 
             # Increment counts and record the current time
             counts = self._counter.increment(
                 steps=self._config.gradient_steps_per_learner_step, 
                 walltime=elapsed_time)
             
-            
+            del metrics[self._priority_name]
             metrics['steps_per_second'] = (
                 self._config.gradient_steps_per_learner_step / elapsed_time if elapsed_time > 0
                 else 0.)

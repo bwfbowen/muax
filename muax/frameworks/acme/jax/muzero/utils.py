@@ -1,8 +1,13 @@
+import functools
 import numpy as np 
 import jax 
 from jax import numpy as jnp
 from acme.adders.reverb import base as reverb_base
 from acme.agents.jax import actor_core as actor_core_lib
+
+
+POLICY_PROBS_KEY = 'pi'
+RAW_VALUES_KEY = 'value'
 
 
 def temperature_fn(max_training_steps, training_steps):
@@ -15,20 +20,52 @@ def temperature_fn(max_training_steps, training_steps):
       return 0.25
 
 
-def get_priority_fn_with_reanalyse(policy: actor_core_lib.ActorCore) -> reverb_base.PriorityFn:
-    
+def get_priority_fn_with_reanalyse(
+    discount: float,
+    num_bootstrapping: int,
+    sequence_length: int,
+    bootstrapping_lambda: float,
+    priority_alpha: float,
+  ) -> reverb_base.PriorityFn:
+    _gammas = np.power(discount, np.arange(1, sequence_length + 1))
+    n_step_return_fn = functools.partial(n_step_bootstrapped_returns,
+                                         discount_t=_gammas,
+                                         n=num_bootstrapping,
+                                         lambda_t=bootstrapping_lambda, 
+                                         stop_target_gradients=True)
+    @jax.jit
     def priority_fn(trajectory: reverb_base.PriorityFnInput):
-        return 
+        reward = trajectory.reward
+        value = trajectory.extras[RAW_VALUES_KEY]
+        bootstrapped = n_step_return_fn(r_t=reward[..., :-1], v_t=value[..., 1:])
+        priority = jnp.mean(jnp.abs(bootstrapped - value[..., :-1]) ** priority_alpha)
+        return priority 
     
-    return  
+    return priority_fn
 
 
-def get_priority_fn_with_replaybuffer(policy: actor_core_lib.ActorCore) -> reverb_base.PriorityFn:
-    
+def get_priority_fn_with_replaybuffer(
+    discount: float,
+    num_bootstrapping: int,
+    sequence_length: int,
+    bootstrapping_lambda: float,
+    priority_alpha: float,
+  ) -> reverb_base.PriorityFn:
+    _gammas = np.power(discount, np.arange(1, sequence_length + 1))
+    n_step_return_fn = functools.partial(n_step_bootstrapped_returns,
+                                         discount_t=_gammas,
+                                         n=num_bootstrapping,
+                                         lambda_t=bootstrapping_lambda, 
+                                         stop_target_gradients=True)
+    @jax.jit
     def priority_fn(trajectory: reverb_base.PriorityFnInput):
-        return 
+        reward = trajectory.reward
+        value = trajectory.extras[RAW_VALUES_KEY]
+        bootstrapped = n_step_return_fn(r_t=reward[..., :-1], v_t=value[..., 1:])
+        priority = jnp.mean(jnp.abs(bootstrapped - value[..., :-1]) ** priority_alpha)
+        return priority 
 
-    return  
+    return priority_fn
 
 
 @jax.jit

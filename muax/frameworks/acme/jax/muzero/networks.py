@@ -56,9 +56,9 @@ def make_mlp_networks(
     environment_spec: specs.EnvironmentSpec,
     embedding_dim: int = 64,
     *,
-    representation_layer_sizes: Sequence[int] = (256, 256),
-    prediction_layer_sizes: Sequence[int] = (256, 256),
-    dynamic_layer_sizes: Sequence[int] = (256, 256),
+    representation_layer_sizes: Sequence[int] = (256, 256, 256),
+    prediction_layer_sizes: Sequence[int] = (256, 256, 256),
+    dynamic_layer_sizes: Sequence[int] = (256, 256, 256),
     full_support_size: int = 51,
     vmin: float = -150., # Used by 2hot critics
     vmax: float = 150., # Used by 2hot critics
