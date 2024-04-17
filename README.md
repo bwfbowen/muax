@@ -8,6 +8,17 @@ You can install the released version of muax through PyPI:
 pip install muax
 ```
 
+To use acme-jax framework, as it depends on `jaxlib==0.4.3`, which is an older version, you may have to first install it by:
+
+```sh
+pip install jaxlib==0.4.3 -f https://storage.googleapis.com/jax-releases/jax_releases.html
+```
+
+Then install `acme-jax`:
+```sh
+pip install muax[acme-jax]
+```
+
 ## Getting started
 Muax provides some functions around [mctx](https://github.com/deepmind/mctx)'s high-level policy `muzero_policy`. The usage of muax could be similar to using policies like DQN, PPO and etc. For instance, in a typical loop for interacting with the environment, the code is like(code snippet from [muax/test](https://github.com/bwfbowen/muax/blob/main/muax/test.py)):
 

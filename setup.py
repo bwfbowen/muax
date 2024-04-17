@@ -1,6 +1,10 @@
 import os 
 import setuptools 
-from importlib import util as import_util 
+from importlib import util as import_util
+
+import setuptools.command
+import setuptools.command.build_py
+import setuptools.command.develop 
 
 spec = import_util.spec_from_file_location('_metadata', 'muax/_metadata.py')
 _metadata = import_util.module_from_spec(spec)
@@ -24,7 +28,7 @@ tensorflow = [
 ]
 
 acme_core_requirements = [
-    'dm-acme'
+    'dm-acme',
     'absl-py',
     'dm-env',
     'dm-tree',
@@ -77,7 +81,7 @@ def generate_requirements_file(path=None):
     path: path to the requirements.txt file to generate.
   """
   if not path:
-    path = os.path.join(os.path.dirname(__file__), 'acme/requirements.txt')
+    path = os.path.join(os.path.dirname(__file__), 'muax/requirements.txt')
   with open(path, 'w') as f:
     for package in set(muax_core_requirements 
                        + acme_core_requirements 
@@ -97,7 +101,6 @@ class BuildPy(setuptools.command.build_py.build_py):
   def run(self):
     generate_requirements_file()
     setuptools.command.build_py.build_py.run(self)
-
 
 class Develop(setuptools.command.develop.develop):
 
@@ -134,6 +137,9 @@ setuptools.setup(
     'License :: OSI Approved :: MIT License',
     'Operating System :: OS Independent'
   ],
-  python_requires='>=3.6',
+  dependency_links=[
+    'https://storage.googleapis.com/jax-releases/jax_releases.html',
+  ],
+  python_requires='>=3.9',
 )
   
