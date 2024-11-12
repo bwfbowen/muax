@@ -15,7 +15,9 @@
    - [ ] dm_control
    - [ ] safety (review)
 
-5. [ ] Experiment with different search policies on Open Spiel Go
+5. [ ] Experiment with different search policies
+   - [ ] on open spiel game Go
+   - [ ] on stochastic Multi-Arm Bandits
    - [ ] implement ltr with similar processing as AlphaZero
    - [ ] find out equation equivalent for ltr 
    

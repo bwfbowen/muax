@@ -37,7 +37,7 @@ flags.DEFINE_float('root_dirichlet_alpha', 0.03, 'Dirichlet noise alpha paramete
 flags.DEFINE_float('root_exploration_fraction', 0.25, 'Root prior exploration noise fraction')
 flags.DEFINE_float('pb_c_base', 19652, 'UCB formula constant')
 flags.DEFINE_float('pb_c_init', 1.25, 'UCB formula constant')
-flags.DEFINE_string('search_policy', 'puct', 'Search policy to use: puct, ucb/pucb, or ltr/pltr')
+flags.DEFINE_string('search_policy', 'puct', 'Search policy to use: puct, ucb/pucb, or ltr/pltr/pnltr')
 flags.DEFINE_integer('num_sampling_moves', 30, 'Number of moves for temperature sampling')
 flags.DEFINE_integer('max_moves', 722, 'Maximum number of moves per game for Go')
 flags.DEFINE_integer('board_size', 19, 'Board size of game Go')
@@ -296,6 +296,8 @@ def get_search_policy(policy_name):
         return search.pucb
     elif policy_name == 'pltr':
         return search.pltr
+    elif policy_name == 'pnltr':
+        return search.pnltr
     elif policy_name == 'ltr':
         return search.ltr
     elif policy_name == 'ucb':

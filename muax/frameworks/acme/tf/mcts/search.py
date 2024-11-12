@@ -509,8 +509,8 @@ def pucb(node: Node, c_base: float = 19652, c_init: float = 1.25) -> types.Actio
     The action chosen by the PUCB algorithm.
 
   """
-  # Calculate pb_c (predictor bias constant)
-  pb_c = np.log((node.visit_count + c_base + 1) / c_base) + c_init
+  # # Calculate pb_c (predictor bias constant)
+  # pb_c = np.log((node.visit_count + c_base + 1) / c_base) + c_init
 
   # Action values Q(s,a).
   value_scores = np.array([c.value for c in node.children.values()])
@@ -528,7 +528,8 @@ def pucb(node: Node, c_base: float = 19652, c_init: float = 1.25) -> types.Actio
   check_numerics(visit_ratios)
 
   # Combine.
-  pucb_scores = value_scores + pb_c * priors * visit_ratios
+  # pucb_scores = value_scores + pb_c * priors * visit_ratios
+  pucb_scores = value_scores + priors * visit_ratios
   # Set score of illegal actions (zero prior) to negative infinity
   pucb_scores = np.where(priors > 0., pucb_scores, np.finfo(np.float32).min)
   return argmax(pucb_scores)
@@ -546,8 +547,8 @@ def ucb(node: Node, c_base: float = 19652, c_init: float = 1.25) -> types.Action
     The action chosen by the UCB algorithm.
 
   """
-  # Calculate pb_c (predictor bias constant)
-  pb_c = np.log((node.visit_count + c_base + 1) / c_base) + c_init
+  # # Calculate pb_c (predictor bias constant)
+  # pb_c = np.log((node.visit_count + c_base + 1) / c_base) + c_init
 
   # Policy prior P(s,a).
   priors = np.array([c.prior for c in node.children.values()])
@@ -564,7 +565,8 @@ def ucb(node: Node, c_base: float = 19652, c_init: float = 1.25) -> types.Action
   check_numerics(visit_ratios)
 
   # Combine.
-  ucb_scores = value_scores + pb_c * visit_ratios
+  # ucb_scores = value_scores + pb_c * visit_ratios
+  ucb_scores = value_scores + visit_ratios
   # Set score of illegal actions (zero prior) to negative infinity
   ucb_scores = np.where(priors > 0., ucb_scores, np.finfo(np.float32).min)
   return argmax(ucb_scores)
@@ -581,8 +583,8 @@ def ltr(node: Node, c_base: float = 19652, c_init: float = 1.25) -> types.Action
   Returns:
     The action chosen by the LTR algorithm.
   """
-  # Calculate pb_c (predictor bias constant)
-  pb_c = np.log((node.visit_count + c_base + 1) / c_base) + c_init
+  # # Calculate pb_c (predictor bias constant)
+  # pb_c = np.log((node.visit_count + c_base + 1) / c_base) + c_init
 
   # Action values Q(s,a).
   value_scores = np.array([c.value for c in node.children.values()])
@@ -600,7 +602,8 @@ def ltr(node: Node, c_base: float = 19652, c_init: float = 1.25) -> types.Action
   check_numerics(visit_ratios)
 
   # Combine.
-  ltr_scores = value_scores + pb_c * visit_ratios
+  # ltr_scores = value_scores + pb_c * visit_ratios
+  ltr_scores = value_scores + visit_ratios
   # Set score of illegal actions (zero prior) to negative infinity
   ltr_scores = np.where(priors > 0., ltr_scores, np.finfo(np.float32).min)
   return argmax(ltr_scores)
@@ -617,8 +620,47 @@ def pltr(node: Node, c_base: float = 19652, c_init: float = 1.25) -> types.Actio
   Returns:
     The action chosen by the PLTR algorithm.
   """
+  # # Calculate pb_c (predictor bias constant)
+  # pb_c = np.log((node.visit_count + c_base + 1) / c_base) + c_init
+
+  # Action values Q(s,a).
+  value_scores = np.array([c.value for c in node.children.values()])
+  check_numerics(value_scores)
+
+  # Policy prior P(s,a).
+  priors = np.array([c.prior for c in node.children.values()])
+  check_numerics(priors)
+
+  # Visit ratios.
+  # \sqrt{TlogT}/n
+  visit_ratios = np.array([
+      np.sqrt(node.visit_count * np.log(node.visit_count)) / (c.visit_count + 1)
+      for c in node.children.values()
+  ])
+  check_numerics(visit_ratios)
+
+  # Combine.
+  # pltr_scores = value_scores + pb_c * priors * visit_ratios
+  pltr_scores = value_scores + priors * visit_ratios
+  # Set score of illegal actions (zero prior) to negative infinity
+  pltr_scores = np.where(priors > 0., pltr_scores, np.finfo(np.float32).min)
+  return argmax(pltr_scores)
+
+
+def pnltr(node: Node, c_base: float = 19652, c_init: float = 1.25) -> types.Action:
+  """Implements Light-Tailed Risk(https://arxiv.org/pdf/2206.02969) policy with prior 
+  and normalized in a similar way as puct in AlphaZero.
+
+  Args:
+    node: The current node in the search tree.
+    c_base: Base constant for controlling exploration.
+    c_init: Initial constant for controlling exploration.
+  
+  Returns:
+    The action chosen by the PLTR algorithm.
+  """
   # Calculate pb_c (predictor bias constant)
-  pb_c = np.log((node.visit_count + c_base + 1) / c_base) + c_init
+  pb_c = np.sqrt(np.log((node.visit_count + c_base + 1) / c_base) + c_init)
 
   # Action values Q(s,a).
   value_scores = np.array([c.value for c in node.children.values()])
