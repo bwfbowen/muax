@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Example running MuZero on discrete control tasks."""
+"""Example running Stochastic MuZero on discrete control tasks."""
 from typing import Callable
 
 import datetime
@@ -20,7 +20,7 @@ import math
 
 from absl import flags
 from acme import specs
-from muax.frameworks.acme.jax import muzero
+from muax.frameworks.acme.jax import stochastic_muzero
 import helpers
 from absl import app
 from acme.jax import experiments
@@ -56,7 +56,7 @@ RUN_DISTRIBUTED = flags.DEFINE_bool(
 def build_experiment_config() -> experiments.ExperimentConfig:
   """Builds experiment config which can be executed in different ways."""
   env_type, env_name = ENV_NAME.value.split('|')
-  muzero_config = muzero.MZConfig()
+  muzero_config = stochastic_muzero.SMZConfig()
   
   def get_env_factory(env_type: str, env_name: str) -> Callable[[int], dm_env.Environment]:
     if env_type == 'classic':
@@ -80,8 +80,8 @@ def build_experiment_config() -> experiments.ExperimentConfig:
 
   def network_factory(
       spec: specs.EnvironmentSpec,
-  ) -> muzero.MzNetworks:
-    return muzero.make_mlp_networks(
+  ) -> stochastic_muzero.SmzNetworks:
+    return stochastic_muzero.make_mlp_networks(
       spec, 
       full_support_size=muzero_config.full_support_size,
       vmin=muzero_config.vmin,
@@ -94,12 +94,12 @@ def build_experiment_config() -> experiments.ExperimentConfig:
   # Construct the builder.
   env_spec = specs.make_environment_spec(env_factory(SEED.value))
   extra_spec = {
-      muzero.POLICY_PROBS_KEY: specs.Array(
+      stochastic_muzero.POLICY_PROBS_KEY: specs.Array(
           shape=(env_spec.actions.num_values,), dtype='float32'
       ),
-      muzero.RAW_VALUES_KEY: specs.Array(shape=(), dtype='float32'),
+      stochastic_muzero.RAW_VALUES_KEY: specs.Array(shape=(), dtype='float32'),
   }
-  muzero_builder = muzero.MzBuilder(  # pytype: disable=wrong-arg-types  # jax-ndarray
+  muzero_builder = stochastic_muzero.SmzBuilder(  # pytype: disable=wrong-arg-types  # jax-ndarray
       muzero_config,
       extra_spec,
   )

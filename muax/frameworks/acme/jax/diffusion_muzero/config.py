@@ -5,16 +5,16 @@ import jax
 import mctx
 from acme.adders import reverb 
 from acme.adders.reverb import base as reverb_base
-from muax.frameworks.acme.jax.muzero import types
-from muax.frameworks.acme.jax.muzero import utils
+from muax.frameworks.acme.jax.stochastic_muzero import types
+from muax.frameworks.acme.jax.stochastic_muzero import utils
 
 
 @dataclasses.dataclass
-class MuZeroConfig:
-    """MuZero config"""
+class StochasticMuZeroConfig:
+    """Stochastic MuZero config"""
     num_stacked_observations: int = 1
     num_steps: int = int(1e4)
-    num_simulations: int = 50
+    num_simulations: int = 200
     invalid_actions: types.Action = None
     max_depth: int = None
     loop_fn: Callable = jax.lax.fori_loop
@@ -25,7 +25,7 @@ class MuZeroConfig:
     dirichlet_fraction: float = 0.25
     dirichlet_alpha: float = 0.3
     discount: float = 0.99  # Discount rate applied to value per timestep.
-    policy_jit_static_argnames: Tuple[str] = ('recurrent_fn', 'num_simulations', 'loop_fn', 'qtransform', 'max_depth', 'dirichlet_fraction', 'dirichlet_alpha', 'pb_c_init', 'pb_c_base')
+    policy_jit_static_argnames: Tuple[str] = ('decision_recurrent_fn', 'chance_recurrent_fn', 'num_simulations', 'loop_fn', 'qtransform', 'max_depth', 'dirichlet_fraction', 'dirichlet_alpha', 'pb_c_init', 'pb_c_base')
 
     batch_size: int = 32
     gradient_steps_per_learner_step: int = 8
@@ -51,6 +51,8 @@ class MuZeroConfig:
     num_bootstrapping: int = 10
     num_unroll_steps: int = 5
     bootstrapping_lambda: float = 1.
+
+    vqvae_beta: float = .25
 
     adder_type: reverb_base.ReverbAdder = reverb.SequenceAdder
     sequence_length: int = 10

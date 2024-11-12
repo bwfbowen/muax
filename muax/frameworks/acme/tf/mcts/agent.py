@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """A single-process MCTS agent."""
+from typing import Callable, Optional
 
 from acme import datasets
 from acme import specs
@@ -21,6 +22,7 @@ from acme.agents import agent
 from muax.frameworks.acme.tf.mcts import acting
 from muax.frameworks.acme.tf.mcts import learning
 from muax.frameworks.acme.tf.mcts import models
+from muax.frameworks.acme.tf.mcts import search
 from acme.tf import utils as tf2_utils
 
 import numpy as np
@@ -42,6 +44,18 @@ class MCTS(agent.Agent):
       num_simulations: int,
       environment_spec: specs.EnvironmentSpec,
       batch_size: int,
+      *,
+      mcts_policy: Callable = search.mcts,
+      search_policy: Callable = search.puct,
+      value_transform: Optional[Callable[[float, int, int], float]] = None,
+      root_dirichlet_alpha: float = 0.03,
+      root_exploration_fraction: float = 0.25,
+      pb_c_base: float = 19652,
+      pb_c_init: float = 1.25,
+      num_sampling_moves: Optional[int] = None,
+      temperature: float = 1.0,
+      checkpoint: bool = True,
+      save_directory: str = '~/acme',
   ):
 
     extra_spec = {
@@ -81,6 +95,15 @@ class MCTS(agent.Agent):
         discount=discount,
         adder=adder,
         num_simulations=num_simulations,
+        mcts_policy=mcts_policy,
+        search_policy=search_policy,
+        value_transform=value_transform,
+        root_dirichlet_alpha=root_dirichlet_alpha,
+        root_exploration_fraction=root_exploration_fraction,
+        pb_c_base=pb_c_base,
+        pb_c_init=pb_c_init,
+        num_sampling_moves=num_sampling_moves,
+        temperature=temperature,
     )
 
     learner = learning.AZLearner(
@@ -88,6 +111,8 @@ class MCTS(agent.Agent):
         optimizer=optimizer,
         dataset=dataset,
         discount=discount,
+        checkpoint=checkpoint,
+        save_directory=save_directory,
     )
 
     # The parent class combines these together into one 'agent'.

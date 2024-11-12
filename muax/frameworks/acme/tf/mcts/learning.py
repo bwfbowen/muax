@@ -37,6 +37,8 @@ class AZLearner(acme.Learner):
       discount: float,
       logger: Optional[loggers.Logger] = None,
       counter: Optional[counting.Counter] = None,
+      checkpoint: bool = True,
+      save_directory: str = '~/acme',
   ):
 
     # Logger and counter for tracking statistics / writing out to terminal.
@@ -50,6 +52,28 @@ class AZLearner(acme.Learner):
     self._network = network
     self._variables = network.trainable_variables
     self._discount = np.float32(discount)
+
+    # Add checkpointing
+    self._checkpointer = None
+    self._snapshotter = None
+
+    if checkpoint:
+        self._checkpointer = tf2_savers.Checkpointer(
+            directory=save_directory,
+            subdirectory='alphazero_learner',
+            objects_to_save={
+                'network': self._network,
+                'optimizer': self._optimizer,
+                'counter': self._counter,
+            },
+            time_delta_minutes=30,
+            max_to_keep=5,
+        )
+        self._snapshotter = tf2_savers.Snapshotter(
+            directory=save_directory,
+            objects_to_save={'network': self._network},
+            time_delta_minutes=30,
+        )
 
   @tf.function
   def _step(self) -> tf.Tensor:
@@ -84,6 +108,12 @@ class AZLearner(acme.Learner):
     """Does a step of SGD and logs the results."""
     loss = self._step()
     self._logger.write({'loss': loss})
+
+    # Add checkpoint saving
+    if self._checkpointer:
+        self._checkpointer.save()
+    if self._snapshotter:
+        self._snapshotter.save()
 
   def get_variables(self, names: List[str]) -> List[List[np.ndarray]]:
     """Exposes the variables for actors to update from."""

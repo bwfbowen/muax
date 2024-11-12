@@ -23,6 +23,7 @@ from muax.frameworks.acme.tf.mcts import models
 from muax.frameworks.acme.tf.mcts import search
 from muax.frameworks.acme.tf.mcts import types
 from acme.tf import variable_utils as tf2_variable_utils
+from acme.tf import utils as tf2_utils
 
 import dm_env
 import numpy as np
@@ -45,6 +46,15 @@ class MCTSActor(acme.Actor):
       num_simulations: int,
       adder: Optional[adders.Adder] = None,
       variable_client: Optional[tf2_variable_utils.VariableClient] = None,
+      mcts_policy: Callable = search.mcts,
+      search_policy: Callable = search.puct,
+      value_transform: Optional[Callable[[float, int, int], float]] = None,
+      root_dirichlet_alpha: float = 0.03,
+      root_exploration_fraction: float = 0.25,
+      pb_c_base: float = 19652,
+      pb_c_init: float = 1.25,
+      num_sampling_moves: Optional[int] = None,
+      temperature: float = 1.0,
   ):
 
     # Internalize components: model, network, data sink and variable source.
@@ -58,6 +68,16 @@ class MCTSActor(acme.Actor):
     self._num_simulations = num_simulations
     self._actions = list(range(self._num_actions))
     self._discount = discount
+    self._mcts_policy = mcts_policy
+    self._search_policy = search_policy
+    self._value_transform = value_transform
+    self._root_dirichlet_alpha = root_dirichlet_alpha
+    self._root_exploration_fraction = root_exploration_fraction
+    self._pb_c_base = pb_c_base
+    self._pb_c_init = pb_c_init
+    self._num_sampling_moves = np.inf if num_sampling_moves is None else num_sampling_moves
+    self._temperature = temperature
+    self._move_count = 0
 
     # We need to save the policy so as to add it to replay on the next step.
     self._probs = np.ones(
@@ -66,7 +86,7 @@ class MCTSActor(acme.Actor):
   def _forward(
       self, observation: types.Observation) -> Tuple[types.Probs, types.Value]:
     """Performs a forward pass of the policy-value network."""
-    logits, value = self._network(tf.expand_dims(observation, axis=0))
+    logits, value = self._network(tf2_utils.add_batch_dim(observation))
 
     # Convert to numpy & take softmax.
     logits = logits.numpy().squeeze(axis=0)
@@ -80,25 +100,41 @@ class MCTSActor(acme.Actor):
     if self._model.needs_reset:
       self._model.reset(observation)
     
-    # Compute a fresh MCTS plan.
-    root = search.mcts(
-        observation,
-        model=self._model,
-        search_policy=search.puct,
-        evaluation=self._forward,
-        num_simulations=self._num_simulations,
-        num_actions=self._num_actions,
-        discount=self._discount,
-    )
+    # Base MCTS parameters
+    mcts_kwargs = {
+        'observation': observation,
+        'model': self._model,
+        'search_policy': self._search_policy,
+        'evaluation': self._forward,
+        'num_simulations': self._num_simulations,
+        'num_actions': self._num_actions,
+        'discount': self._discount,
+        'root_dirichlet_alpha': self._root_dirichlet_alpha,
+        'root_exploration_fraction': self._root_exploration_fraction,
+        'pb_c_base': self._pb_c_base,
+        'pb_c_init': self._pb_c_init,
+    }
 
-    # The agent's policy is softmax w.r.t. the *visit counts* as in AlphaZero.
-    probs = search.visit_count_policy(root)
-    action = np.int32(np.random.choice(self._actions, p=probs))
+    # Add value_transform if using open_spiel_mcts
+    if self._mcts_policy == search.open_spiel_mcts and self._value_transform is not None:
+        mcts_kwargs['value_transform'] = self._value_transform
+
+    # Compute fresh MCTS plan using selected policy
+    root = self._mcts_policy(**mcts_kwargs)
+    
+    # Always sample if num_sampling_moves is np.inf, otherwise sample for the first num_sampling_moves
+    if self._move_count < self._num_sampling_moves:
+        probs = search.visit_count_policy(root, temperature=self._temperature)
+        action = np.random.choice(self._actions, p=probs)
+    else:
+        action = np.argmax([child.visit_count for child in root.children.values()])
+
+    self._move_count += 1
 
     # Save the policy probs so that we can add them to replay in `observe()`.
     self._probs = probs.astype(np.float32)
 
-    return action
+    return np.int32(action)
 
   def update(self, wait: bool = False):
     """Fetches the latest variables from the variable source, if needed."""
@@ -109,6 +145,7 @@ class MCTSActor(acme.Actor):
     self._prev_timestep = timestep
     if self._adder:
       self._adder.add_first(timestep)
+    self._move_count = 0
 
   def observe(self, action: types.Action, next_timestep: dm_env.TimeStep):
     """Updates the agent's internal model and adds the transition to replay."""
@@ -338,3 +375,4 @@ class SampledMCTSActor(MCTSActor):
     action = self._convert(raw_action)
 
     return action
+

@@ -32,6 +32,8 @@ from dm_env import TimeStep
 import gym
 import haiku as hk
 import jax.numpy as jnp
+import jumanji
+import jumanji.wrappers
 
 
 FLAGS = flags.FLAGS
@@ -50,6 +52,20 @@ def make_classiccontrol_environment(
       wrappers.SinglePrecisionWrapper,
   ]
   return wrappers.wrap_all(env, wrapper_list)
+
+
+def make_jumanji_environment(level: str, seed: int = None) -> dm_env.Environment:
+    env = jumanji.make(level)
+    
+    if seed is not None:
+        env.seed(seed)
+    
+    dm_env = jumanji.wrappers.JumanjiToDMEnvWrapper(env)
+    
+    wrapper_list = [
+        wrappers.SinglePrecisionWrapper,
+    ]
+    return wrappers.wrap_all(dm_env, wrapper_list)
 
 
 def make_atari_environment(

@@ -1,3 +1,4 @@
+from typing import NamedTuple, Optional, Callable
 import numpy as np
 import jax
 from jax import numpy as jnp 
@@ -5,6 +6,32 @@ import haiku as hk
 from functools import partial
 
 from muax.utils import action2plane
+
+
+class MZNetworkParams(NamedTuple):
+    representation: Optional[hk.Params] = None
+    prediction: Optional[hk.Params] = None
+    dynamic: Optional[hk.Params] = None
+    
+
+class MZNetwork(NamedTuple):
+    representation_fn: Callable
+    prediction_fn: Callable
+    dynamic_fn: Callable
+
+
+def create_muzero_network(
+    representation_module: hk.Module,
+    prediction_module: hk.Module,
+    dynamic_module: hk.Module,
+    embedding_dim: int,
+    num_actions: int,
+    full_support_size: int
+) -> MZNetwork:
+    repr_fn = _init_representation_func(representation_module, embedding_dim)
+    pred_fn = _init_prediction_func(prediction_module, num_actions, full_support_size)
+    dy_fn = _init_dynamic_func(dynamic_module, embedding_dim, num_actions, full_support_size)
+    return MZNetwork(repr_fn, pred_fn, dy_fn)
 
 
 @jax.jit

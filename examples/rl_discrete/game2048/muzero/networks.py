@@ -38,8 +38,8 @@ def init_params(
     observations, actions = utils.zeros_like((spec.observations, spec.actions))
     if add_batch_dim:
         observations, actions = utils.add_batch_dim((observations, actions))
-    representation_params = networks.representation_network.init(rng_keys[0], observations)
-    embeddings = networks.representation_network.apply(representation_params, observations)
+    representation_params = networks.representation_network.init(rng_keys[0], observations['board'])
+    embeddings = networks.representation_network.apply(representation_params, observations['board'])
     prediction_params = networks.prediction_network.init(rng_keys[1], embeddings)
     dynamic_params = networks.dynamic_network.init(rng_keys[2], embeddings, actions)
 
@@ -150,9 +150,10 @@ def make_fully_connect_resnet_networks(
             super().__init__()
             self.linear1 = hk.Linear(embedding_dim)
             self.linear2 = hk.Linear(embedding_dim)
+            self.projection = hk.Linear(embedding_dim)
 
         def __call__(self, x):
-            residual = x
+            residual = self.projection(x)
             x = hk.LayerNorm(axis=-1, create_scale=True, create_offset=True)(x)
             x = jax.nn.relu(x)
             x = self.linear1(x)

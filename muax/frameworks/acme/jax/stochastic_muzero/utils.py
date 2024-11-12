@@ -12,14 +12,12 @@ RAW_VALUES_KEY = 'value'
 
 def temperature_fn(max_training_steps, training_steps):
   r"""Determines the randomness for the action taken by the model"""
-  if training_steps < 0.2 * max_training_steps:
+  if training_steps < 0.5 * max_training_steps:
       return 1.0
-  elif training_steps < 0.4 * max_training_steps:
+  elif training_steps < 0.75 * max_training_steps:
       return 0.5
-  elif training_steps < 0.6 * max_training_steps:
-      return 0.1
   else:
-      return 0
+      return 0.25
 
 
 def get_priority_fn_with_reanalyse(
