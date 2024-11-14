@@ -48,22 +48,21 @@ def init_params(
     networks: SMZNetworks,
     spec: specs.EnvironmentSpec,
     random_key: types.RNGKey,
-    max_chance_size: int = 32,
     add_batch_dim: bool = True, 
 ) -> SMZNetworkParams:
     rng_keys = jax.random.split(random_key, 5)
     observations, actions = utils.zeros_like((spec.observations, spec.actions))
-    dummy_chance_outcome = jnp.zeros(max_chance_size, dtype=jnp.int32)
+    dummy_chance_outcome = jnp.zeros((1,), dtype=jnp.int32)
     if add_batch_dim:
-        observations, actions, dummy_chance_outcome = utils.add_batch_dim((observations, actions, dummy_chance_outcome))
+        observations, actions = utils.add_batch_dim((observations, actions))
     
     encoder_params = networks.encoder_network.init(rng_keys[0], observations)
     representation_params = networks.representation_network.init(rng_keys[1], observations)
     state_embedding = networks.representation_network.apply(representation_params, observations)
     prediction_params = networks.prediction_network.init(rng_keys[2], state_embedding)
     decision_params = networks.decision_network.init(rng_keys[2], state_embedding, actions)
-    afterstate_embedding = networks.decision_network.apply(decision_params, state_embedding, actions)
-    chance_params = networks.chance_network.init(rng_keys[3], dummy_chance_outcome, afterstate_embedding)
+    afterstate_embedding, _, _ = networks.decision_network.apply(decision_params, state_embedding, actions)
+    chance_params = networks.chance_network.init(rng_keys[3], afterstate_embedding, dummy_chance_outcome)
 
     params = SMZNetworkParams(
         encoder=encoder_params,
@@ -135,7 +134,7 @@ def make_mlp_networks(
             ])
             self.afterstate_value_func = hk.Sequential([
                 networks_lib.LayerNormMLP(decision_layer_sizes, activate_final=True),
-                networks_lib.CategoricalValueHead(num_bins=full_support_size, vmin=vmin, vmax=vmax)
+                networks_lib.CategoricalCriticHead(num_bins=full_support_size, vmin=vmin, vmax=vmax)
             ])
             self.cat_func = jax.jit(lambda s, a: 
                                     jnp.concatenate([s, jax.nn.one_hot(a, num_actions)],
@@ -162,11 +161,14 @@ def make_mlp_networks(
             
             self.reward_func = hk.Sequential([
                 networks_lib.LayerNormMLP(chance_layer_sizes, activate_final=True),
-                networks_lib.CategoricalValueHead(num_bins=value_support_size, vmin=vmin, vmax=vmax)
+                networks_lib.CategoricalCriticHead(num_bins=value_support_size, vmin=vmin, vmax=vmax)
             ])
 
         def __call__(self, afterstate_embedding, chance_outcome):
-            input_tensor = jnp.concatenate([afterstate_embedding, chance_outcome], axis=-1)
+            # chance outcome is of shape [B], 
+            # convert it to one-hot of shape [B, max_chance_code_book_size]
+            chance_one_hot = jax.nn.one_hot(chance_outcome, max_chance_code_book_size)    
+            input_tensor = jnp.concatenate([afterstate_embedding, chance_one_hot], axis=-1)
             state_embedding = self.state_func(input_tensor)
             state_embedding = smz_utils.min_max_normalize(state_embedding)
             reward = self.reward_func(state_embedding)
@@ -177,7 +179,7 @@ def make_mlp_networks(
             super().__init__(name=name)
             self.value_func = hk.Sequential([
                 networks_lib.LayerNormMLP(prediction_layer_sizes, activate_final=True),
-                networks_lib.CategoricalValueHead(num_bins=full_support_size, vmin=vmin, vmax=vmax)
+                networks_lib.CategoricalCriticHead(num_bins=full_support_size, vmin=vmin, vmax=vmax)
             ])
             self.action_logits_func = hk.Sequential([
                 networks_lib.LayerNormMLP(prediction_layer_sizes, activate_final=True),

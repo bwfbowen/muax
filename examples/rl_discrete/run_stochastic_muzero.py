@@ -88,7 +88,8 @@ def build_experiment_config() -> experiments.ExperimentConfig:
       vmax=muzero_config.vmax,
       representation_layer_sizes = (16, 64, 64, 64),
       prediction_layer_sizes = (16, 64, 64, 64),
-      dynamic_layer_sizes = (16, 64, 64, 64),
+      decision_layer_sizes = (16, 64, 64, 64),
+      chance_layer_sizes = (16, 64, 64, 64),
       )
 
   # Construct the builder.

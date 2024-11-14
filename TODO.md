@@ -4,7 +4,8 @@
 
 2. [ ] Implement and test diffusion stochastic MuZero
    - [ ] Add diffusion model components(Rectified Flow)
-   - [ ] Realize Stochastic MuZero(refer to mctx.stochastic_muzero_policy)
+      - [ ] Decide jax or tensorflow, by reading mctx
+   - [ ] Test Stochastic MuZero(refer to mctx.stochastic_muzero_policy)
    - [ ] Implement sampled MuZero mechanism
 
 3. [ ] Implement and test learning MCTS as policy improvement

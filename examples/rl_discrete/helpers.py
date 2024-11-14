@@ -41,7 +41,7 @@ FLAGS = flags.FLAGS
 
 def make_classiccontrol_environment(
     level: str = 'CartPole',
-
+    seed: int = None,
 ) -> dm_env.Environment:
   versions = {'CartPole': 'v1'}
   level_name = f'{level}-{versions[level]}'

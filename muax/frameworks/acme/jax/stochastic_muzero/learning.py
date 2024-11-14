@@ -156,6 +156,7 @@ class SMZLearner(acme.Learner):
         params = optax.apply_updates(state.params, updates)
         step = state.step + 1
         new_params = smz_networks.SMZNetworkParams(
+            encoder=params.encoder,
             representation=params.representation,
             prediction=params.prediction,
             decision=params.decision,
@@ -223,10 +224,11 @@ class SMZLearner(acme.Learner):
             code_encoded = self._networks.encoder_network.apply(params.encoder, batch.observation[:, i])
             code_quantized = smz_networks.select_closest_code(code_encoded)
             code = code_encoded + jax.lax.stop_gradient(code_quantized - code_encoded)
+            chance_outcome = jnp.argmax(code, axis=-1)
             # Appendix G, scale the gradient at the start of the dynamics function by 1/2 
             s = smz_utils.scale_gradient(s, 0.5)
             ae, c_logit, av = self._networks.decision_network.apply(params.decision, s, batch.action[:, i - 1])
-            ns, a_logits, v, r = self._networks.chance_network.apply(params.chance, ae, code)
+            ns, a_logits, v, r = self._networks.chance_network.apply(params.chance, ae, chance_outcome)
             
             # losses: reward
             loss_r = jnp.mean(
